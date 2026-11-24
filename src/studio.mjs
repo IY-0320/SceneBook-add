@@ -83,7 +83,7 @@ function homePage(page,{api,open,close,listen}){
         button('장면 편집',async()=>{close();await api.compose();},false,'fa-pen'),
         button('이미지에서 설정 읽기',()=>imageImport(api,()=>open('prompt',true)),false,'fa-file-image'),
         button('사용법',showGuide,false,'fa-circle-question'));
-    actions.append(quick,el('p','ap2-muted','수동 생성은 마지막 답변의 그림을 지금 만듭니다. AI에게 장면을 쓰게 하거나 프롬프트를 직접 적을 수 있고, 자동 삽화가 꺼져 있어도 됩니다. 장면 편집은 인물 배치까지 자세히 다룹니다. 다른 답변은 그 답변의 메뉴(…)에 있는 마법봉·풍경 아이콘을 누르세요. 이미 나온 그림은 그림 위의 연필 버튼으로 고치고 회전 화살표로 다시 그립니다.'));
+    actions.append(quick,el('p','ap2-muted','마지막 답변에 적용됩니다. 다른 답변은 그 답변 메뉴(…)의 마법봉·풍경 아이콘으로, 이미 나온 그림은 그림 위의 연필·회전 화살표로.'));
     const summary=section(page,'지금 설정'),list=el('div','ap2-summary');summary.append(list);
     function describe(){
         const s=api.settings(),look=LOOKS.find(([id])=>id===s.look)?.[1],visual=api.visualSettings(),applied=usableReferences(s.model,s.references??[]).length;
@@ -223,14 +223,25 @@ function queuePage(page,{api,open}){
 const BUILDERS={home:homePage,prompt:promptPage,image:imagePage,characters:charactersPage,references:referencesPage,display:displayPage,gallery:galleryPage,queue:queuePage};
 
 let current=null;
-// The main window. Asking for it again while it is open only switches the page.
-export function studio(api,{page:first='home'}={}){
-    if(current?.dialog.open){void current.open(first);return current.dialog;}
-    const {dialog,body}=modal('씬북');dialog.classList.add('ap2-studio');
-    dialog.querySelector('.ap2-header-title h2').append(el('small','ap2-version',CLIENT_VERSION));
-    const headerClose=dialog.querySelector('.ap2-header .ap2-close'),headerActions=el('div','ap2-actions ap2-header-actions');
-    headerClose.replaceWith(headerActions);headerActions.append(button('사용법',showGuide,false,'fa-circle-question'),headerClose);
-    const nav=el('nav','ap2-nav'),pages=el('div','ap2-pages');nav.setAttribute('aria-label','씬북 메뉴');nav.setAttribute('role','tablist');body.append(nav,pages);
+// All of SceneBook's pages. Without `host` they open as a window (asking again
+// while it is open only switches the page); with `host` they are laid straight
+// into that element, as in the extension drawer, with nothing to open first.
+export function studio(api,{page:first='home',host=null}={}){
+    if(!host&&current?.dialog.open){void current.open(first);return current.dialog;}
+    const nav=el('nav','ap2-nav'),pages=el('div','ap2-pages');nav.setAttribute('aria-label','씬북 메뉴');nav.setAttribute('role','tablist');
+    let dialog=null;
+    if(host){
+        // Small buttons beside the tabs: the same pages in a wide window, and the guide.
+        const bar=el('div','ap2-hostbar'),tools=el('div','ap2-hostbar-tools');
+        tools.append(iconButton('넓은 창으로 열기','fa-expand',()=>{studio(api,{page:activeId});}),iconButton('사용법','fa-circle-question',showGuide));
+        bar.append(nav,tools);host.append(bar,pages);
+    }else{
+        const frame=modal('씬북');dialog=frame.dialog;dialog.classList.add('ap2-studio');
+        dialog.querySelector('.ap2-header-title h2').append(el('small','ap2-version',CLIENT_VERSION));
+        const headerClose=dialog.querySelector('.ap2-header .ap2-close'),headerActions=el('div','ap2-actions ap2-header-actions');
+        headerClose.replaceWith(headerActions);headerActions.append(button('사용법',showGuide,false,'fa-circle-question'),headerClose);
+        frame.body.append(nav,pages);
+    }
     const cached=new Map(),state={scope:null},instance=`ap2-${crypto.randomUUID()}`,watchers=new Map();let activeId=first,pageEvents=new Map();
     // A page's listeners end when that page is rebuilt or the window closes.
     const stop=id=>{pageEvents.get(id)?.abort();pageEvents.delete(id);};
@@ -245,7 +256,7 @@ export function studio(api,{page:first='home'}={}){
         const page=el('section','ap2-page');page.id=`${instance}-page-${id}`;page.dataset.page=id;page.setAttribute('role','tabpanel');page.setAttribute('aria-labelledby',`${instance}-tab-${id}`);pages.append(page);cached.set(id,page);pages.scrollTop=0;
         const events=new AbortController();pageEvents.set(id,events);
         const listen=(names,handler)=>{for(const name of names)document.addEventListener(name,handler,{signal:events.signal});};
-        try{await BUILDERS[id](page,{api,open,state,listen,close:()=>dialog.close(),isCurrent:candidate=>cached.get(id)===candidate&&candidate.isConnected});}
+        try{await BUILDERS[id](page,{api,open,state,listen,close:()=>dialog?.close(),isCurrent:candidate=>cached.get(id)===candidate&&candidate.isConnected});}
         catch(e){page.dataset.failed='true';page.append(el('p','ap2-empty',e.message));}
     };
     for(const [id,label,icon]of PAGES){const b=button(label,()=>open(id),false,icon);b.classList.add('ap2-nav-item');b.dataset.page=id;b.id=`${instance}-tab-${id}`;b.setAttribute('role','tab');b.setAttribute('aria-controls',`${instance}-page-${id}`);nav.append(b);}
@@ -261,10 +272,14 @@ export function studio(api,{page:first='home'}={}){
     watchers.set('scenebook-context-changed',()=>{state.scope=null;const page=cached.get('characters');if(page?.dataset.dirty==='true')notice('저장되지 않은 인물 입력이 있었습니다. 이전 채팅에는 마지막으로 저장된 설정이 유지됩니다.');drop('characters');if(activeId==='characters')void open('characters',true);});
     watchers.set('scenebook-workflow-status',()=>{if(activeId==='queue'&&!document.querySelector('.ap2-action-panel:popover-open'))void open('queue');});
     for(const [name,handler]of watchers)document.addEventListener(name,handler);
-    dialog.addEventListener('close',()=>{for(const [name,handler]of watchers)document.removeEventListener(name,handler);for(const id of [...pageEvents.keys()])stop(id);current=null;},{once:true});
-    current={dialog,open};void open(first);return dialog;
+    // The drawer stays for the whole session; only a window has listeners to give back.
+    if(dialog){
+        dialog.addEventListener('close',()=>{for(const [name,handler]of watchers)document.removeEventListener(name,handler);for(const id of [...pageEvents.keys()])stop(id);current=null;},{once:true});
+        current={dialog,open};
+    }
+    void open(first);return dialog??host;
 }
-// The drawer in SillyTavern's extension list: status, the on/off switch and the way in.
+// The drawer in SillyTavern's extension list. Every page is right there once it is opened.
 export function mountSettings(api,container){
     const drawer=el('div','inline-drawer');drawer.id='ap2-settings';
     const header=el('div','inline-drawer-toggle inline-drawer-header');header.tabIndex=0;header.setAttribute('role','button');header.setAttribute('aria-expanded','false');header.setAttribute('aria-controls','ap2-settings-content');
@@ -274,15 +289,6 @@ export function mountSettings(api,container){
     drawer.append(header,content);container.append(drawer);
     header.addEventListener('click',()=>{header.setAttribute('aria-expanded',String(header.getAttribute('aria-expanded')!=='true'));});
     header.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();header.click();}});
-    syncTone();
-    const connection=el('div','ap2-connection'),connectionText=el('span','ap2-connection-label','연결 확인 중');
-    const check=async()=>{connectionText.textContent='연결 확인 중';try{const h=await api.health(true);connectionText.textContent=h.hasKey?`준비됨 · 서버 ${h.version}`:'NovelAI 키가 저장되지 않았습니다';connection.dataset.state=h.hasKey?'ready':'warning';}catch(e){connectionText.textContent=e.message;connection.dataset.state='warning';}};
-    connection.append(connectionText,iconButton('연결 다시 확인','fa-rotate-right',check));
-    const flow=workflowControls(api),card=el('section','ap2-workflow');card.append(flow.toggle.wrap,flow.help,flow.mode.wrap,flow.status);
-    const actions=el('div','ap2-quick');
-    actions.append(button('씬북 열기',()=>{studio(api);},true,'fa-panorama'),button('수동 생성',()=>{api.manual();},false,'fa-wand-magic-sparkles'));
-    content.append(connection,card,actions,el('p','ap2-muted','프롬프트·모델·인물·참조는 씬북 열기에서 넓은 화면으로 설정합니다. 채팅 입력창 왼쪽의 마법봉 메뉴에서도 열 수 있습니다.'));
-    for(const name of ['scenebook-workflow-status','scenebook-settings-changed'])document.addEventListener(name,flow.refresh);
-    flow.refresh();void check();
+    syncTone();studio(api,{host:content});
     return drawer;
 }

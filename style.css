@@ -95,9 +95,22 @@
 .ap2-workflow-status { margin: 10px 0 0; font-size: .82em; line-height: 1.5; color: var(--ap2-muted); overflow-wrap: anywhere; }
 .ap2-section > p:empty { display: none; }
 .ap2-section > .ap2-segmented { margin-top: 10px; }
-.ap2-quick { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 8px; margin: 0 0 10px; }
-.ap2-quick .ap2-button { --ap2-h: 44px; }
-.ap2-settings .ap2-quick { grid-template-columns: 1fr; }
+/* Quick actions sit side by side at normal size and wrap; never a stack of full-width bars. */
+.ap2-quick { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 10px; }
+.ap2-quick .ap2-button { flex: 1 1 auto; }
+/* In the drawer the menu is a compact grid of tabs, all visible at once. */
+.ap2-hostbar { display: flex; align-items: flex-start; gap: 6px; margin: 0 0 10px; }
+.ap2-hostbar-tools { flex: none; display: grid; gap: 4px; }
+.ap2-hostbar-tools .ap2-button { --ap2-h: 34px; }
+.ap2-settings .ap2-nav { flex: 1 1 auto; min-width: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; width: auto; padding: 0; overflow: visible; }
+.ap2-settings .ap2-nav .ap2-nav-item { --ap2-h: 34px; width: auto; justify-content: center; gap: 6px; padding: 0 4px; background: var(--ap2-1); font-size: .84em; }
+.ap2-settings .ap2-nav .ap2-nav-item[aria-selected=true] { background: var(--ap2-fg); color: var(--ap2-on); }
+.ap2-settings .ap2-nav .ap2-nav-item > i { display: none; }
+.ap2-settings .ap2-pages { padding: 0; overflow: visible; }
+@container (min-width: 620px) {
+    .ap2-settings .ap2-nav { grid-template-columns: repeat(8, minmax(0, 1fr)); }
+    .ap2-hostbar-tools { grid-auto-flow: column; }
+}
 
 /* Pages: titled blocks of settings, and folded groups for the rest. */
 .ap2-page { min-width: 0; }
@@ -411,7 +424,7 @@ details.ap2-group[open] { padding-bottom: 12px; }
 
 /* Narrow panels and phones. */
 @media (pointer: coarse) {
-    #ap2-settings, .ap2-dialog, .ap2-figure, .ap2-action-panel { --ap2-h: 42px; }
+    #ap2-settings, .ap2-dialog, .ap2-figure, .ap2-action-panel { --ap2-h: 40px; }
     .ap2-group > summary, .ap2-character > summary, .ap2-guide-topic > summary { min-height: 50px; }
     .ap2-chip-button { min-height: 38px; }
     .ap2-figure .ap2-image-navigation .ap2-button { width: 36px; min-height: 32px; }
@@ -456,9 +469,10 @@ details.ap2-group[open] { padding-bottom: 12px; }
 /* A narrow window puts the menu in a row above the page. */
 @media (max-width: 780px) {
     .ap2-studio > .ap2-body { flex-direction: column; }
-    .ap2-nav { flex-direction: row; width: auto; padding: 0 12px 8px; overflow: auto hidden; scrollbar-width: none; }
-    .ap2-nav::-webkit-scrollbar { display: none; }
-    .ap2-nav .ap2-nav-item { flex: none; width: auto; gap: 7px; padding: 0 12px; }
+    .ap2-studio .ap2-nav { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; width: auto; padding: 0 12px 8px; overflow: visible; }
+    .ap2-studio .ap2-nav .ap2-nav-item { --ap2-h: 36px; width: auto; justify-content: center; gap: 6px; padding: 0 4px; background: var(--ap2-1); font-size: .84em; }
+    .ap2-studio .ap2-nav .ap2-nav-item[aria-selected=true] { background: var(--ap2-fg); color: var(--ap2-on); }
+    .ap2-studio .ap2-nav .ap2-nav-item > i { display: none; }
     .ap2-pages { padding: 4px 16px 20px; }
 }
 @media (prefers-reduced-motion: reduce) {
