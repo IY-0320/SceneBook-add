@@ -1,4 +1,11 @@
-export const CLIENT_VERSION='0.4.30';
+export const CLIENT_VERSION='0.5.0';
+// True when the running server plugin is at least the given version.
+export function serverAtLeast(version,major,minor,patch=0){
+    const m=String(version??'').match(/^(\d+)\.(\d+)\.(\d+)/);if(!m)return false;
+    const have=[+m[1],+m[2],+m[3]],want=[major,minor,patch];
+    for(let i=0;i<3;i++)if(have[i]!==want[i])return have[i]>want[i];
+    return true;
+}
 export function validateHealth(value){
     const version=typeof value?.version==='string'?value.version:'알 수 없음';
     const match=version.match(/^(\d+)\.(\d+)\.(\d+)(?:$|[-+])/);

@@ -1,10 +1,17 @@
 // NovelAI protocol validation and request payloads.
+// What each model family accepts as an image reference. V5 takes Precise
+// Reference only: several pictures, an outfit type, strength up to 5 and no
+// fidelity control. `precise` is the number of Precise pictures per image.
+const REFERENCES_V5 = Object.freeze({ vibe: false, precise: 8, total: 8, outfit: true, fidelity: false, strengthMax: 5, bucket: true });
+const REFERENCES_V45 = Object.freeze({ vibe: true, precise: 1, total: 4, outfit: false, fidelity: true, strengthMax: 1, bucket: false });
 export const MODELS = Object.freeze({
-    'nai-diffusion-5-full': { label: 'V5 Full', family: 5, characters: 32, tokens: 1471, references: false },
-    'nai-diffusion-5-curated': { label: 'V5 Curated', family: 5, characters: 32, tokens: 703, references: false },
-    'nai-diffusion-4-5-full': { label: 'V4.5 Full', family: 4.5, characters: 6, tokens: 512, references: true },
-    'nai-diffusion-4-5-curated': { label: 'V4.5 Curated', family: 4.5, characters: 6, tokens: 512, references: true },
+    'nai-diffusion-5-full': { label: 'V5 Full', family: 5, characters: 32, tokens: 1471, references: REFERENCES_V5 },
+    'nai-diffusion-5-curated': { label: 'V5 Curated', family: 5, characters: 32, tokens: 703, references: REFERENCES_V5 },
+    'nai-diffusion-4-5-full': { label: 'V4.5 Full', family: 4.5, characters: 6, tokens: 512, references: REFERENCES_V45 },
+    'nai-diffusion-4-5-curated': { label: 'V4.5 Curated', family: 4.5, characters: 6, tokens: 512, references: REFERENCES_V45 },
 });
+export const REFERENCE_MODES = ['character', 'style', 'character&style', 'outfit'];
+export const REFERENCE_LIMIT = 12;
 export const SAMPLERS = ['k_euler_ancestral', 'k_euler', 'k_dpmpp_2m', 'k_dpmpp_2m_sde', 'k_dpmpp_sde', 'k_dpmpp_2s_ancestral'];
 export const DEFAULTS = Object.freeze({
     model: 'nai-diffusion-5-full', width: 832, height: 1216, steps: 23, scale: 7,
@@ -37,16 +44,58 @@ export function validateConfig(input = {}) {
     if (c.transparent && MODELS[c.model].family !== 5) fail('투명 배경은 V5에서만 지원합니다.');
     c.style = text(c.style); c.negative = text(c.negative);
     for(const k of ['quality','budgetGuard','transparent','useCoords','useOrder'])if(typeof c[k]!=='boolean')fail(`${k}: 켜기/끄기 값이 필요합니다.`);
-    if(!Array.isArray(c.references)||c.references.length>4)fail('레퍼런스는 최대 4개입니다.');
-    c.references=c.references.map(r=>{
-        if(!r||!/^[-a-f0-9]{36}$/i.test(r.id)||!['vibe','precise'].includes(r.kind))fail('레퍼런스 설정이 잘못됐습니다.');
-        if(!['character','style','character&style'].includes(r.mode??'character'))fail('레퍼런스 유형을 확인하세요.');
-        return {id:r.id,kind:r.kind,strength:number(r.strength??0.6,0,1,'레퍼런스 강도'),fidelity:number(r.fidelity??1,0,1,'충실도'),information:number(r.information??1,0,1,'정보량'),mode:r.mode??'character'};
-    });
-    if(c.references.length&&!MODELS[c.model].references)fail('V5는 현재 Vibe·Precise Reference를 지원하지 않습니다. 레퍼런스 적용을 해제하거나 V4.5를 선택하세요.');
-    if(c.references.filter(r=>r.kind==='precise').length>1)fail('Precise Reference는 한 번에 1개까지 지원합니다.');
+    // The saved list is model independent, so changing the model never loses
+    // it. buildPayload() checks what the chosen model can actually use.
+    if(!Array.isArray(c.references)||c.references.length>REFERENCE_LIMIT)fail(`레퍼런스는 최대 ${REFERENCE_LIMIT}개입니다.`);
+    c.references=c.references.map(normalizeReference);
     if (c.budgetGuard && (c.width * c.height > 1048576 || c.steps > 28)) fail('비용 보호: 1,048,576픽셀·28 Steps 이하로 설정하거나 보호를 해제하세요. 무료 생성 보장은 아닙니다.');
     return c;
+}
+export function normalizeReference(r) {
+    if(!r||!/^[-a-f0-9]{36}$/i.test(r.id)||!['vibe','precise'].includes(r.kind))fail('레퍼런스 설정이 잘못됐습니다.');
+    const mode=r.mode??'character';
+    if(!REFERENCE_MODES.includes(mode))fail('레퍼런스 유형을 확인하세요.');
+    // NovelAI's own default: "Character & Style" keeps the outfit, "Character" does not.
+    const sameOutfit=typeof r.sameOutfit==='boolean'?r.sameOutfit:mode==='character&style';
+    return {id:r.id,kind:r.kind,strength:number(r.strength??0.6,0,5,'레퍼런스 강도'),fidelity:number(r.fidelity??1,0,1,'충실도'),information:number(r.information??1,0,1,'정보량'),mode,sameOutfit};
+}
+// One entry per saved reference: `skip` says why this model cannot use it.
+export function referencePlan(model, references = []) {
+    const support=MODELS[model].references,label=MODELS[model].label;let precise=0,used=0;
+    return references.map(ref=>{
+        let skip='';
+        if(ref.kind==='vibe'&&!support.vibe)skip=`${label}은 Vibe Transfer를 지원하지 않습니다.`;
+        else if(ref.kind==='precise'&&ref.mode==='outfit'&&!support.outfit)skip='의상 참조는 V5에서만 사용할 수 있습니다.';
+        else if(ref.kind==='precise'&&precise>=support.precise)skip=`${label}의 Precise Reference는 한 번에 ${support.precise}장까지입니다.`;
+        else if(used>=support.total)skip=`${label}의 참조는 한 번에 ${support.total}장까지입니다.`;
+        if(!skip){used++;if(ref.kind==='precise')precise++;}
+        return {ref,skip};
+    });
+}
+// The references a model will use, with strength kept inside its range.
+export function usableReferences(model, references = []) {
+    const limit=ref=>ref.kind==='precise'?MODELS[model].references.strengthMax:1;
+    return referencePlan(model,references).filter(x=>!x.skip).map(({ref})=>ref.strength>limit(ref)?{...ref,strength:limit(ref)}:ref);
+}
+// The reference type as NovelAI names it in director_reference_descriptions.
+export function referenceCaption(ref, model) {
+    if(ref.mode==='outfit')return 'costume';
+    if(ref.mode==='style')return 'style';
+    if(!MODELS[model].references.outfit)return ref.mode;
+    if(ref.mode==='character')return ref.sameOutfit?'character_mainoutfit':'character';
+    return ref.sameOutfit?'character&style':'character&style_anyoutfit';
+}
+// V5 reads a Precise Reference at the ~1 megapixel size closest to its shape.
+export const REFERENCE_BUCKETS=(()=>{
+    const tall=[];for(let h=4096;h>=1024;h-=64)tall.push([Math.floor(1048576/h/64)*64,h]);
+    return [...tall,...tall.slice(0,-1).reverse().map(([w,h])=>[h,w])];
+})();
+export function referenceBucket(width, height) {
+    const shape=Math.log(Math.max(width,1)/Math.max(height,1));let best=REFERENCE_BUCKETS[0],distance=Infinity;
+    for(const b of REFERENCE_BUCKETS){const d=Math.abs(shape-Math.log(b[0]/b[1]));if(d<distance){best=b;distance=d;}}
+    // Cover the bucket, then crop the overflow evenly from both sides.
+    const scale=Math.max(best[0]/width,best[1]/height),resizeWidth=Math.max(Math.floor(width*scale+.5),best[0]),resizeHeight=Math.max(Math.floor(height*scale+.5),best[1]);
+    return {width:best[0],height:best[1],resizeWidth,resizeHeight,left:Math.floor((resizeWidth-best[0])/2),top:Math.floor((resizeHeight-best[1])/2)};
 }
 export function normalizeScene(input, model, paragraphCount = 10000) {
     if (!input || typeof input !== 'object' || Array.isArray(input)) fail('장면 객체가 필요합니다.');
@@ -70,6 +119,10 @@ export function buildPayload(sceneInput, configInput, seed) {
     const s = normalizeScene(sceneInput, c.model);
     number(seed, 0, 4294967295, 'Seed', true);
     if (configInput.vibes?.length || configInput.reference) fail('레퍼런스 라이브러리에 먼저 이미지를 등록하세요.');
+    // Never drop or weaken a reference silently on the way to a paid request.
+    const refused=referencePlan(c.model,c.references).find(x=>x.skip);
+    if(refused)fail(refused.skip);
+    if(c.references.some(r=>r.strength>(r.kind==='precise'?model.references.strengthMax:1)))fail(`${model.label}의 참조 강도는 Precise Reference 0~${model.references.strengthMax}, Vibe 0~1입니다.`);
     const quality = c.quality ? (model.family === 5 ? 'very aesthetic, masterpiece, no text' : 'very aesthetic, best quality') : '';
     const prompt = s.finalPrompt ? s.prompt : [c.style, s.camera, s.prompt, quality, c.transparent ? 'transparent background, has alpha' : ''].filter(Boolean).join(', ');
     const negative = s.finalPrompt ? s.negative : [c.negative, s.negative].filter(Boolean).join(', ');

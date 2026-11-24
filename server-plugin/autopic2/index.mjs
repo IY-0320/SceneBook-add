@@ -1,6 +1,6 @@
 import { GenerationService, ApiError } from './service.mjs';
 import { MODELS } from './core.mjs';
-import { listReferences,saveReference } from './references.mjs';
+import { listReferences,saveReference,saveReferenceVariant } from './references.mjs';
 import { VertexService,VertexError } from './vertex.mjs';
 
 export const info = { id: 'autopic2', name: '씬북', description: 'Isolated NovelAI illustration service with durable job recovery.' };
@@ -32,7 +32,7 @@ export function registerRoutes(router, { service, readKey, vertexRequest }) {
     };
     router.get('/health', wrap(async (req, res) => {
         await service.locations(req.user.directories);
-        res.json({ version: '0.4.4', models: MODELS, hasKey: !!readKey(req.user.directories) });
+        res.json({ version: '0.5.0', models: MODELS, hasKey: !!readKey(req.user.directories) });
     }));
     router.get('/jobs', wrap(async (req, res) => res.json({ jobs: await service.list(req.user.directories) })));
     router.post('/vertex',wrap(async(req,res)=>{
@@ -46,6 +46,9 @@ export function registerRoutes(router, { service, readKey, vertexRequest }) {
     router.get('/references',wrap(async(req,res)=>res.json({references:await listReferences(req.user.directories)})));
     router.post('/references',wrap(async(req,res)=>{
         try{res.json(await saveReference(req.user.directories,req.body));}catch(e){throw new ApiError(400,e.message,'INVALID_REFERENCE');}
+    }));
+    router.post('/references/variant',wrap(async(req,res)=>{
+        try{res.json(await saveReferenceVariant(req.user.directories,req.body));}catch(e){throw new ApiError(400,e.message,'INVALID_REFERENCE');}
     }));
     router.post('/references/delete',wrap(async(req,res)=>res.json(await service.deleteReference(req.user.directories,req.body?.id))));
     router.post('/generate', wrap(async (req, res) => {

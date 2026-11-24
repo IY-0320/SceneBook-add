@@ -44,9 +44,27 @@ export const LOOKS=[
     ['oil','유화','oil painting (medium), impasto, visible brushstrokes, rich colors, classical lighting','flat color, lineart'],
     ['pastel','파스텔 동화','soft pastel colors, storybook illustration, gentle lighting, rounded shapes, dreamy','dark, high contrast'],
 ];
+const join=(a,b)=>[a,b].map(x=>String(x??'').trim()).filter(Boolean).join(', ');
+// Takes a built-in look back out of a rendered config: its tags from the
+// front of the main prompt and its exclusions from the end of the UC. A
+// picture's saved config has the look applied, and an older version could
+// apply it again on every regeneration, so every stacked copy is removed.
+export function splitLook(config){
+    let style=String(config?.style??'').trim(),negative=String(config?.negative??'').trim(),look='';
+    for(let found=true;found;){
+        found=false;
+        for(const [id,,tags,exclude]of LOOKS){
+            if(!id||(style!==tags&&!style.startsWith(`${tags}, `)))continue;
+            style=style.slice(tags.length).replace(/^,\s*/,'');look||=id;found=true;
+            if(negative===exclude||negative.endsWith(`, ${exclude}`))negative=negative.slice(0,negative.length-exclude.length).replace(/,\s*$/,'');
+        }
+    }
+    return{style,negative,look};
+}
+// Applies a look exactly once, whatever the config already carries.
 export function withLook(config,id){
-    const look=LOOKS.find(x=>x[0]===id);if(!look||!look[0])return config;
-    const join=(a,b)=>[a,b].map(x=>String(x??'').trim()).filter(Boolean).join(', ');
-    return{...config,style:join(look[2],config.style),negative:join(config.negative,look[3])};
+    const plain=splitLook(config),look=LOOKS.find(x=>x[0]===id);
+    if(!look||!look[0])return{...config,style:plain.style,negative:plain.negative};
+    return{...config,style:join(look[2],plain.style),negative:join(plain.negative,look[3])};
 }
 export const FRAMES=[['soft','기본'],['none','없음'],['line','라인']];

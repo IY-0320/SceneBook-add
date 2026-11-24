@@ -27,7 +27,7 @@ export function imageImport(api,onApplied){
             if(result.warnings.length){const warnings=el('ul','ap2-import-warnings');for(const message of result.warnings)warnings.append(el('li','',message));preview.append(warnings);}
             preview.append(el('p','ap2-muted','메인·UC 프롬프트와 위 생성 설정을 가져옵니다. 캐릭터 프롬프트·캐릭터 UC·좌표·시드는 가져오지 않습니다. 품질 태그는 원문과 중복되지 않도록 추가를 끕니다.'));
             const config=forScene=>{normalizeScene(result.scene,model.read()||'nai-diffusion-5-full');return importedConfig(api.settings(),result,{model:model.read(),relaxBudget:large&&relax.read(),forScene});};
-            footer.append(button('설정에 적용',async()=>{api.saveSettings(config(false));await onApplied();dialog.close();notice('메인·UC 프롬프트와 생성 설정을 적용했습니다. 생성 → 프롬프트에서 확인할 수 있습니다.');},true),button('장면으로 열기',async()=>{await api.importScene({...result.scene,characters:[]},config(true));dialog.close();}));
+            footer.append(button('설정에 적용',async()=>{api.saveSettings(config(false));await onApplied();dialog.close();notice('메인·UC 프롬프트와 생성 설정을 적용했습니다. 프롬프트 탭에서 확인할 수 있습니다.');},true),button('장면으로 열기',async()=>{await api.importScene({...result.scene,characters:[]},config(true));dialog.close();}));
         }catch(e){if(ticket===serial){status.textContent=e.message;status.setAttribute('role','alert');}}
     }
     file.addEventListener('change',()=>{if(file.files?.[0])void read(file.files[0]);file.value='';});

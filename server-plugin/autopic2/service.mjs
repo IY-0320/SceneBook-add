@@ -107,7 +107,7 @@ export class GenerationService {
             try {
                 if(config.references.length){
                     try{await applyReferences(payload,config,directories,key,this.fetch,controller.signal);}
-                    catch(error){if(error.code==='REFERENCE_NOT_FOUND')throw new ApiError(400,error.message,error.code);throw error;}
+                    catch(error){if(['REFERENCE_NOT_FOUND','REFERENCE_NOT_READY','REFERENCE_INVALID'].includes(error.code))throw new ApiError(400,error.message,error.code);throw error;}
                 }
                 const response = await this.fetch('https://image.novelai.net/ai/generate-image', {
                     method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },

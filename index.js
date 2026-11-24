@@ -2,26 +2,28 @@ import './src/compat.mjs';
 import { ConnectionManagerRequestService } from '../../shared.js';
 import { requestAnalysis,analysisError } from './src/connection.mjs';
 import { notify,progressNotice } from './src/notifications.mjs';
-import { MODELS, validateConfig, normalizeScene, safeImagePath, sourceKey, number, text } from './plugin/core.mjs';
+import { MODELS, validateConfig, normalizeScene, safeImagePath, sourceKey, number, text, usableReferences } from './plugin/core.mjs';
 import { createContext, compileCharacter, planInstruction, scenePosition, validateAnchor, normalized } from './src/context.mjs';
 import { validateTemplate } from './src/prompts.mjs';
 import { parsePlanJson } from './src/plan-json.mjs';
 import { AutomaticResponses, workflowEnabled } from './src/automatic.mjs';
 import { CLIENT_DEFAULTS as DEFAULTS,initializeSettings,preserveSettings,settingsHistory } from './src/settings.mjs';
 import { visualFields,characterKey,characterVisuals,hasVisualScope,activeVisualScope,resolveVisualSettings } from './src/visual-settings.mjs';
-import { createHealthCheck } from './src/server-health.mjs';
+import { createHealthCheck, serverAtLeast } from './src/server-health.mjs';
 import { renderInjection, validateInjectionTemplate, extractInjectedPlan, readStoredInjection, injectedScenes } from './src/injection.mjs';
 import { WorkQueue } from './src/queue.mjs';
 import { downloadChat } from './src/export.mjs';
 import { mergeRevision } from './src/revision.mjs';
 import { adoptEditedView } from './src/edited-view.mjs';
-import { orientation, sizeFor, LOOKS, withLook } from './src/framing.mjs';
+import { orientation, sizeFor, LOOKS, withLook, splitLook } from './src/framing.mjs';
 import { applyFrame, validFrame } from './src/frames-ui.mjs';
 import { INKS } from './src/ornaments.mjs';
 import { readFrameImage, safeFramePath } from './src/frame-import.mjs';
 import { quickEdit } from './src/quick-edit.mjs';
+import { bucketFromPadded } from './src/images.mjs';
+import { studio, mountSettings } from './src/studio.mjs';
 import { timelineInstruction,validateTimeline,resolveAt } from './src/timeline.mjs';
-import { el, button, notice, studio, composer, inspect, viewer, modal, mountSettings, compareVersions, confirmAction, syncTone } from './src/ui.mjs';
+import { el, button, notice, composer, inspect, viewer, modal, compareVersions, confirmAction, syncTone } from './src/ui.mjs';
 
 const KEY = 'autopic2';
 // SillyTavern: in-chat injection, depth 0, System role.
@@ -69,7 +71,7 @@ function cleanSettings(value) {
     if(new Set(c.library.map(x=>x.name)).size!==c.library.length)throw new Error('인물 이름은 중복될 수 없습니다.');
     c.references=validateConfig(c).references;
     if(!Array.isArray(c.presets)||c.presets.length>30)throw new Error('프리셋은 최대 30개입니다.');
-    c.presets=c.presets.map(p=>({name:text(p.name,100),config:generationConfig(validateConfig({...c,...p.config}))}));
+    c.presets=c.presets.map(p=>({name:text(p.name,100),config:{...generationConfig(validateConfig({...c,...p.config})),...(LOOKS.some(([id])=>id===p.config?.look)?{look:p.config.look}:{})}}));
     if(value.characterVisuals!==undefined){
         const saved=value.characterVisuals;
         if(!saved||typeof saved!=='object'||Array.isArray(saved))throw new Error('캐릭터별 인물 설정 형식을 확인하세요.');
@@ -110,6 +112,7 @@ function saveSettings(value) { const previous=settings();preserveSettings(contex
 async function request(route, body, signal) {
     const response=await fetch(`/api/plugins/autopic2/${route}`,{method:body?'POST':'GET',headers:context().getRequestHeaders(),signal,...(body?{body:JSON.stringify(body)}:{})});
     if(route==='vertex'&&response.status===404)throw new Error('씬북 서버 플러그인을 0.4.2 이상으로 업데이트하고 SillyTavern을 재시작하세요.');
+    if(route==='references/variant'&&response.status===404)throw new Error('V5 참조에는 씬북 서버 0.5.0 이상이 필요합니다. 서버 플러그인을 교체하고 SillyTavern을 재시작하세요.');
     if(route==='references/delete'&&response.status===404)throw new Error('참조 삭제에는 씬북 서버 0.4.4 이상이 필요합니다. 서버 플러그인을 교체하고 SillyTavern을 재시작하세요.');
     let result;try{result=await response.json();}catch{throw new Error('씬북 서버 플러그인이 없거나 응답이 올바르지 않습니다. plugins/autopic2 설치와 enableServerPlugins 설정을 확인하세요.');}
     if(!response.ok){const error=new Error(result.error??`서버 응답 ${response.status}`);error.code=result.code;throw error;}
@@ -182,13 +185,31 @@ async function analyze(target,existing=[],direction='',revisionScope='all',persi
         if(value.scenes.length&&!accepted.length)throw new Error('유효한 장면이 없습니다. 원문과 인물 설정을 확인하세요.');
         if(!current(target))throw new Error('분석 중 답변이 변경되었습니다. 새 답변에서 다시 시작하세요.');
         if(!persist)return accepted;
-        viewState(target).draft=accepted;viewState(target).draftConfig=generationConfig(target.config);if(timeline)viewState(target).timeline=timeline;await saveMessage(target);return accepted;
+        viewState(target).draft=accepted;viewState(target).draftConfig=draftConfig(target.config);if(timeline)viewState(target).timeline=timeline;await saveMessage(target);return accepted;
     }finally{progress.close();analysisLocks.delete(lock);updateBadge();}
 }
 function generationConfig(config) {
     // Account keys, story context and the whole character library are never copied into a render job.
     const keys=['model','width','height','steps','scale','seed','sampler','scheduler','cfgRescale','style','negative','quality','budgetGuard','transparent','references','useCoords','useOrder'];
     return Object.fromEntries(keys.map(k=>[k,config[k]]));
+}
+// A picture's saved config has its look already applied to the prompts. For
+// editing, the look is kept beside them so it is applied once per render.
+function editableConfig(config,fallbackLook=''){
+    const plain=splitLook(config);
+    return{...config,style:plain.style,negative:plain.negative,look:typeof config.look==='string'?config.look:plain.look||fallbackLook};
+}
+const draftConfig=config=>({...generationConfig(config),look:config.look??''});
+function restoreDraft(config,saved){
+    return editableConfig({...config,...generationConfig(validateConfig({...config,...saved})),look:saved.look},settings().look);
+}
+// References registered before 0.5.0 have no V5 copy. Make it from the stored picture.
+async function prepareV5References(list){
+    for(const ref of list){
+        if(ref.v5||!safeImagePath(ref.url))continue;
+        Object.assign(ref,await request('references/variant',{id:ref.id,bucket:await bucketFromPadded(ref.url)}));
+    }
+    return list;
 }
 async function reviewImage(job){
     const config=settings();if(!config.profileId)throw new Error('이미지를 볼 수 있는 분석 연결 프로필을 선택하세요.');
@@ -223,16 +244,22 @@ async function enqueue(target,scenes,slotId=null,overrideConfig=null) {
     validateConfig(c);
     if(sessionRequests+queue.items.filter(x=>x.state==='waiting').length+checked.length>settings().sessionLimit)throw new Error('이번 접속의 생성 요청 한도를 초과합니다. 생성 설정에서 한도를 조정하세요.');
     const health=await checkHealth();if(!health.hasKey)throw new Error('SillyTavern에서 NovelAI 키를 먼저 저장하세요.');
-    if(c.references?.length){
-        const available=new Set((await request('references')).references.map(ref=>ref.id));
-        if(c.references.some(ref=>!available.has(ref.id)))throw new Error('삭제된 참조 이미지가 포함되어 있습니다. 톱니바퀴로 장면을 다시 열어 확인한 뒤 생성하세요.');
+    // Only the references this model can use travel with the job.
+    const references=usableReferences(c.model,c.references??[]);
+    if(references.length){
+        const bucket=MODELS[c.model].references.bucket;
+        if(bucket&&!serverAtLeast(health.version,0,5))throw new Error('V5 참조에는 씬북 서버 0.5.0 이상이 필요합니다. 서버 플러그인을 교체하고 SillyTavern을 재시작하거나, 참조 적용을 해제하세요.');
+        const registered=(await request('references')).references,used=references.map(ref=>registered.find(x=>x.id===ref.id));
+        if(used.some(ref=>!ref))throw new Error('삭제된 참조 이미지가 포함되어 있습니다. 그림 고치기의 인물 배치 · 설정으로 열면 삭제된 참조를 빼고 다시 그릴 수 있습니다.');
+        if(bucket)await prepareV5References(used.filter((ref,i)=>references[i].kind==='precise'));
     }
+    // The look is applied here, once, whether this is a new picture or a regeneration.
+    const rendered={...withLook(c,typeof c.look==='string'?c.look:splitLook(c).look),references};
     for(const [position,scene] of checked.entries()){
         const key=`${target.scope}:${target.id}:${target.key}:${slotId??`scene-${position}`}`;
         // The plan may ask for a portrait, landscape or square canvas for this scene.
         const shape=!overrideConfig&&settings().autoSize?orientation(scenes[position].size):'';
-        // A regeneration keeps the look already recorded with that picture.
-        const frozen={...generationConfig(overrideConfig?c:withLook(c,settings().look)),...(shape?sizeFor(c,shape):{})},id=crypto.randomUUID();
+        const frozen={...generationConfig(rendered),...(shape?sizeFor(c,shape):{})},id=crypto.randomUUID();
         const added=queue.add(key,async()=>{
             let progress;
             try{
@@ -254,8 +281,8 @@ async function enqueue(target,scenes,slotId=null,overrideConfig=null) {
 async function compose(index=lastIndex(),manual=true,initial=null,slotId=null,renderConfig=null) {
     const target=capture(index);
     const state=viewState(target),saved=state.draft;
-    if(renderConfig)target.config={...target.config,...generationConfig(renderConfig)};
-    else if(!initial&&saved.length&&state.draftConfig)target.config={...target.config,...generationConfig(validateConfig({...target.config,...state.draftConfig}))};
+    if(renderConfig)target.config=editableConfig({...target.config,...generationConfig(renderConfig),look:renderConfig.look});
+    else if(!initial&&saved.length&&state.draftConfig)target.config=restoreDraft(target.config,state.draftConfig);
     if(target.config.references?.length){
         const available=new Set((await request('references')).references.map(ref=>ref.id)),kept=target.config.references.filter(ref=>available.has(ref.id));
         if(kept.length!==target.config.references.length){target.config.references=kept;notice('삭제된 참조를 제외하고 장면을 열었습니다. 생성 전에 설정을 확인하세요.');}
@@ -267,7 +294,7 @@ async function compose(index=lastIndex(),manual=true,initial=null,slotId=null,re
     if(stored?.value&&stored!==state.injected)state.injected=stored;
     // Show the picture being edited behind the placement board; without a specific one, the reply's first picture.
     const slots=viewState(target).slots,slot=slots.find(x=>x.id===slotId)??slots.find(x=>!x.deleted&&!x.hidden&&x.versions?.length),previewUrl=slot?.versions?.[slot.selected]?.url;
-    composer({context:target.snapshot,scenes,config:target.config,previewUrl,onAnalyze:(old,direction,scope)=>analyze(target,old,direction,scope),onGenerate:s=>enqueue(target,s,slotId),onDraft:async s=>{if(!current(target))throw new Error('편집 중 채팅이 변경됐습니다. 다시 열어 주세요.');viewState(target).draft=s;viewState(target).draftConfig=generationConfig(target.config);await saveMessage(target);}});
+    composer({context:target.snapshot,scenes,config:target.config,previewUrl,onAnalyze:(old,direction,scope)=>analyze(target,old,direction,scope),onGenerate:s=>enqueue(target,s,slotId),onDraft:async s=>{if(!current(target))throw new Error('편집 중 채팅이 변경됐습니다. 다시 열어 주세요.');viewState(target).draft=s;viewState(target).draftConfig=draftConfig(target.config);await saveMessage(target);}});
 }
 function updateBadge() {
     document.dispatchEvent(new Event('scenebook-workflow-status'));
@@ -307,10 +334,15 @@ function openQuickEdit(index,slot) {
     const target=capture(index),job=slot.versions[slot.selected];
     if(!viewState(target,false)?.slots.includes(slot)||slot.deleted)throw new Error('대상 답변이 바뀌었습니다. 이미지를 다시 열어 주세요.');
     const check=()=>{if(!current(target)||slot.deleted)throw new Error('대상 답변이 바뀌었습니다. 이미지를 다시 열어 주세요.');};
-    quickEdit({scene:job.scene,
+    // The picture's own prompts, with its look taken back out so it is shown and applied once.
+    quickEdit({scene:job.scene,config:editableConfig(job.config),seed:job.seed,imageUrl:job.url,
         onRewrite:async(scene,request)=>{check();return(await analyze(target,[{...scene,after:Math.min(scene.after,target.snapshot.blocks.length)}],request,'all',false))[0];},
-        onGenerate:(scene,size)=>{check();return enqueue(target,[scene],slot.id,{...job.config,seed:-1,...(size?sizeFor(job.config,size):{})});},
-        onDetail:scene=>{check();return compose(index,true,[scene],slot.id,{...job.config,seed:job.seed});},
+        onGenerate:(scene,{size,keepSeed,saveDefault,...edits})=>{
+            check();
+            if(saveDefault)saveSettings({...settings(),...edits});
+            return enqueue(target,[scene],slot.id,{...job.config,...edits,seed:keepSeed?job.seed:-1,...(size?sizeFor(job.config,size):{})});
+        },
+        onDetail:(scene,edits)=>{check();return compose(index,true,[scene],slot.id,{...job.config,...edits,seed:job.seed});},
     });
 }
 function renderMessage(index) {
@@ -343,7 +375,7 @@ function renderMessage(index) {
         for(const [label,icon,action]of [
             ['수정','fa-pen',()=>{targetForImage();return openQuickEdit(index,slot);}],
             ['재생성','fa-rotate-right',()=>enqueue(targetForImage(),[job.scene],slot.id,{...job.config,seed:-1})],
-        ]){const b=button('',action,false,icon);b.title=label==='재생성'?'새 시드로 재생성':'장면을 고쳐서 재생성';b.setAttribute('aria-label',label);overlay.append(b);}
+        ]){const b=button('',action,false,icon);b.title=label==='재생성'?'같은 프롬프트, 새 시드로 다시 그리기':'프롬프트를 고쳐서 다시 그리기';b.setAttribute('aria-label',label);overlay.append(b);}
         imageWrap.append(open,overlay);figure.append(imageWrap);applyFrame(figure,imageWrap,open,job.config.width,job.config.height,config);
         if(slot.versions.length>1){
             const change=async delta=>{const target=targetForImage();slot.selected=(slot.selected+delta+slot.versions.length)%slot.versions.length;await saveMessage(target);};
@@ -437,7 +469,7 @@ async function processAutomatic(candidate) {
         if(!embedded.value)throw new Error(`삽화 지시를 읽지 못했습니다: ${embedded.error??'JSON 형식 오류'} · 작업 → 지시 기록에서 확인하세요.`);
         const warnings=[];state.automatic.warnings=warnings;
         const scenes=injectedScenes(embedded.value,target.snapshot.source,target.config,{onInvalid:issue=>warnings.push(issue)});
-        state.draft=scenes;state.draftConfig=generationConfig(target.config);
+        state.draft=scenes;state.draftConfig=draftConfig(target.config);
         if((state.automaticOrder-1)%c.every){state.automatic.status='skipped';state.automatic.error=`답변 간격 ${c.every} · 이번 답변 건너뜀`;setWorkflowStatus(state.automatic.error);await saveMessage(target);return;}
         if(c.automatic==='generate'&&scenes.length){
             if(sessionRequests>=c.sessionLimit)throw new Error('이번 접속의 생성 요청 한도에 도달했습니다.');
@@ -476,7 +508,7 @@ const api={settings,saveSettings,visualSettings,hasVisualOverride:where=>hasVisu
     contextKey:scope,status:()=>analysisLocks.size?'답변 분석 중':queue.running?'삽화 생성 중':queue.paused?'생성 일시정지':workflowStatus,
     exportChat:()=>downloadChat(context().chat,context().getCurrentChatId()??'삽화 채팅',settings().placement),
     saveVisual,resetVisual,
-    references:async()=>(await request('references')).references,uploadReference:value=>request('references',value),
+    references:async()=>(await request('references')).references,uploadReference:value=>request('references',value),prepareReferences:prepareV5References,
     deleteReference:async id=>{
         await request('references/delete',{id});
         queue.cancelWaiting(item=>item.referenceIds?.includes(id));
@@ -488,7 +520,7 @@ const api={settings,saveSettings,visualSettings,hasVisualOverride:where=>hasVisu
     pendingDrafts:()=>context().chat.map((message,index)=>({message,index,state:message.extra?.[KEY]?.views?.[sourceKey(message.mes,message.swipe_id??0)]})).filter(r=>!r.message.is_user&&!r.message.is_system&&r.state?.source===r.message.mes&&r.state.draft?.length&&!(r.state.slots??[]).some(s=>!s.deleted)).map(r=>r.index),
     generateDrafts:async()=>{
         let count=0;
-        for(const index of api.pendingDrafts()){const target=capture(index),state=viewState(target,false);if(!state?.draft?.length)continue;if(state.draftConfig)target.config={...target.config,...generationConfig(validateConfig({...target.config,...state.draftConfig}))};await enqueue(target,state.draft);count+=state.draft.length;}
+        for(const index of api.pendingDrafts()){const target=capture(index),state=viewState(target,false);if(!state?.draft?.length)continue;if(state.draftConfig)target.config=restoreDraft(target.config,state.draftConfig);await enqueue(target,state.draft);count+=state.draft.length;}
         return count;
     },
     addFrame:async file=>{
@@ -515,6 +547,14 @@ function initialize() {
     const c=context();if(initializeSettings(c.extensionSettings))c.saveSettingsDebounced();
     const container=document.getElementById('extensions_settings2')??document.getElementById('extensions_settings');
     if(container&&!document.getElementById('ap2-settings'))mountSettings(api,container);
+    // The same window from the wand menu beside the chat input.
+    const wand=document.getElementById('extensionsMenu');
+    if(wand&&!document.getElementById('ap2-wand')){
+        const holder=el('div','extension_container'),item=el('div','list-group-item flex-container flexGap5 interactable');holder.id='ap2-wand';item.tabIndex=0;item.setAttribute('role','button');
+        item.append(el('div','fa-solid fa-panorama extensionsMenuExtensionButton'),el('span','','씬북'));
+        const show=()=>{try{studio(api);}catch(e){notice(e.message,true);}};
+        item.addEventListener('click',show);item.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();show();}});holder.append(item);wand.append(holder);
+    }
     for(const name of ['CHARACTER_MESSAGE_RENDERED','MESSAGE_EDITED','MESSAGE_UPDATED','MESSAGE_SWIPED','MESSAGE_DELETED','CHAT_CHANGED'])if(c.eventTypes[name])c.eventSource.on(c.eventTypes[name],()=>{if(name==='CHAT_CHANGED'){automatic.reset();receivedCount=0;clearInjection();queue.cancelWaiting();setWorkflowStatus('');document.dispatchEvent(new Event('scenebook-context-changed'));}scheduleRender();});
     if(c.eventTypes.CHARACTER_RENAMED)c.eventSource.on(c.eventTypes.CHARACTER_RENAMED,(oldAvatar,newAvatar)=>{
         const saved={...characterVisuals(context())};if(!Object.hasOwn(saved,oldAvatar)||typeof newAvatar!=='string'||!newAvatar)return;

@@ -1,10 +1,11 @@
-import { MODELS, buildPayload, normalizeScene } from '../plugin/core.mjs';
+import { MODELS, buildPayload, normalizeScene, usableReferences } from '../plugin/core.mjs';
 import { positionEditor } from './position.mjs';
 import { sceneBundle, readSceneBundle } from './editor-data.mjs';
 import { showGuide } from './guide.mjs';
 import { generationEditor } from './generation-ui.mjs';
 import { paragraphPosition } from './paragraph-ui.mjs';
-import { ORIENTATIONS } from './framing.mjs';
+import { ORIENTATIONS, LOOKS, withLook } from './framing.mjs';
+import { cameraChips } from './quick-edit.mjs';
 import { el, button, field, addField, readFields, modal, notice, confirmAction, downloadJson, actionMenu, segmented } from './ui.mjs';
 
 export function composer({context,scenes,config,onAnalyze,onGenerate,onDraft,previewUrl}){
@@ -22,7 +23,7 @@ export function composer({context,scenes,config,onAnalyze,onGenerate,onDraft,pre
     tools.append(sceneBack,sceneNext,addScene,deleteScene);
     sceneSelect.input.addEventListener('change',()=>{selected=Number(sceneSelect.read());person=0;render();});
     const nav=el('div','ap2-editor-tabs'),content=el('div','ap2-editor-content'),status=el('p','ap2-muted');status.setAttribute('role','status');nav.setAttribute('aria-label','장면 편집 항목');
-    for(const [key,label]of [['scene','장면'],['cast','인물·배치'],['final','프롬프트']]){const b=button(label,()=>{tab=key;renderContent();});b.classList.remove('menu_button','menu_button_icon');b.dataset.tab=key;nav.append(b);}
+    for(const [key,label]of [['scene','장면 · 프롬프트'],['cast','인물 · 배치'],['final','최종 확인']]){const b=button(label,()=>{tab=key;renderContent();});b.classList.remove('menu_button','menu_button_icon');b.dataset.tab=key;nav.append(b);}
     dialog.querySelector('.ap2-header-title').append(status);body.append(nav,content);
     const footer=el('footer','ap2-footer ap2-editor-footer'),secondary=el('div','ap2-actions'),primary=el('div','ap2-actions');footer.append(secondary,primary);dialog.append(footer);
     const undoButton=iconButton('되돌리기','fa-rotate-left',()=>{const last=undo.pop();if(!last)return;drafts=last.drafts;Object.assign(config,last.config);selected=last.selected;person=last.person;dirty=true;render();});
@@ -54,14 +55,26 @@ export function composer({context,scenes,config,onAnalyze,onGenerate,onDraft,pre
     function bind(parent,key,label,options={}){const f=field(label,scene()[key],options);parent.append(f.wrap);f.input.addEventListener('input',()=>{scene()[key]=f.read();});return f;}
     function renderScene(){
         if(config.placement==='inline')content.append(paragraphPosition(context.blocks,Number(scene().after),index=>{snapshot();scene().after=index;scene().evidence=context.blocks.find(block=>block.index===index)?.content.slice(0,2000)??'';undoButton.disabled=false;}));
-        const shape=segmented('화면 비율',ORIENTATIONS,scene().size??'',value=>{snapshot();if(value)scene().size=value;else delete scene().size;undoButton.disabled=false;}),shapeRow=el('div','ap2-quick-shape');shapeRow.append(el('span','','화면 비율'),shape.wrap);content.append(shapeRow);
-        bind(content,'prompt','장면 프롬프트',{multiline:true,rows:5,placeholder:'배경, 조명, 장면의 시각적 상황을 입력하세요.'});
-        if(scene().finalPrompt){const exact=field('최종 프롬프트 직접 사용',true,{type:'checkbox',help:'이 장면에는 공통 그림체·구도·품질 태그를 덧붙이지 않습니다.'});exact.input.addEventListener('input',()=>{scene().finalPrompt=exact.read();});content.append(exact.wrap);}
-        const row=el('div','ap2-grid');content.append(row);bind(row,'camera','구도',{multiline:true,rows:3});bind(row,'negative','장면 제외 요소',{multiline:true,rows:3});
-        const common=el('details','ap2-guide-topic');common.append(el('summary','','공통 프롬프트 · 이번 작업'));content.append(common);
-        for(const [key,label,type]of [['style','그림체','text'],['negative','공통 제외 요소','text'],['quality','품질 태그','checkbox']]){const f=field(label,config[key],type==='checkbox'?{type}:{multiline:true});f.input.addEventListener('input',()=>{config[key]=f.read();});common.append(f.wrap);}
-        const instructions=el('details','ap2-guide-topic');instructions.append(el('summary','','AI 수정'));const direction=field('수정 지시',context.direction,{multiline:true,placeholder:'예: 인물은 유지하고 카메라만 멀리'}),scope=field('수정 범위','all',{choices:[['all','전체'],['camera','구도'],['background','배경'],['characters','인물']]});instructions.append(direction.wrap,scope.wrap);
-        instructions.append(button('재분석',async()=>{const before=JSON.stringify(drafts);status.textContent='장면 분석 중…';try{const result=await onAnalyze(structuredClone(drafts),direction.read(),scope.read());if(JSON.stringify(drafts)!==before)throw new Error('분석 중 편집한 내용이 있어 결과로 덮어쓰지 않았습니다.');snapshot();drafts=result;render();status.textContent='분석 완료 · 변경 내용을 확인하세요.';}catch(e){status.textContent='분석 실패 · 기존 편집 내용을 유지했습니다.';throw e;}}));content.append(instructions);
+        // Scene on one side, the job's shared prompts on the other; stacked on a narrow screen.
+        const columns=el('div','ap2-edit-columns'),sceneSide=el('div',''),commonSide=el('div','');columns.append(sceneSide,commonSide);content.append(columns);
+        const part=(side,title,help='')=>{const box=el('section','ap2-edit-block'),head=el('header','');head.append(el('h3','',title));if(help)head.append(el('p','ap2-muted',help));box.append(head);side.append(box);return box;};
+        const bare=f=>{f.wrap.classList.add('ap2-field-bare');return f;},exact=!!scene().finalPrompt;
+        const sceneBox=part(sceneSide,exact?'최종 프롬프트':'장면',exact?'직접 고친 최종 프롬프트입니다. 이 내용이 그대로 전송됩니다.':'이 그림의 배경·상황·행동입니다. 인물은 인물 · 배치에서 따로 적습니다.');
+        bare(bind(sceneBox,'prompt','장면 프롬프트',{multiline:true,rows:4,placeholder:'배경, 조명, 장면의 시각적 상황을 입력하세요.'}));
+        bind(sceneBox,'negative',exact?'최종 제외 요소 (UC)':'이 장면에서만 제외',{multiline:true,rows:2});
+        if(exact){const direct=field('최종 프롬프트 직접 사용',true,{type:'checkbox',help:'끄면 이 내용을 장면으로 쓰고 메인 프롬프트·그림체·구도·품질 태그를 다시 붙입니다. 겹치는 태그는 직접 지워 주세요.'});direct.input.addEventListener('input',()=>{scene().finalPrompt=direct.read();renderContent();});sceneBox.append(direct.wrap);}
+        const cameraBox=part(sceneSide,'구도 · 화면 비율');
+        if(!exact){const camera=bare(bind(cameraBox,'camera','구도',{placeholder:'예: from side, upper body'}));cameraBox.insertBefore(cameraChips(camera).wrap,camera.wrap);}
+        const shape=segmented('화면 비율',ORIENTATIONS,scene().size??'',value=>{snapshot();if(value)scene().size=value;else delete scene().size;undoButton.disabled=false;}),shapeRow=el('div','ap2-quick-shape');shapeRow.append(el('span','','화면 비율'),shape.wrap);cameraBox.append(shapeRow);
+        if(!exact){
+            // The shared prompts of this job. They start from the saved defaults or from the picture being edited.
+            const common=part(commonSide,'메인 프롬프트','이 작업의 모든 장면에 붙는 화풍·공통 태그입니다. 여기서 고쳐도 기본 설정은 바뀌지 않습니다.');
+            for(const [key,label,rows]of [['style','메인 프롬프트',4],['negative','제외할 요소 (UC)',3]]){const f=field(label,config[key],{multiline:true,rows});f.input.addEventListener('input',()=>{config[key]=f.read();});common.append(f.wrap);if(key==='style')f.wrap.classList.add('ap2-field-bare');}
+            const look=field('그림체',LOOKS.some(([id])=>id===config.look)?config.look:'',{choices:LOOKS.map(([id,label])=>[id,label])});look.input.addEventListener('input',()=>{config.look=look.read();});common.append(look.wrap);
+            const quality=field('품질 태그 자동 추가',config.quality,{type:'checkbox'});quality.input.addEventListener('input',()=>{config.quality=quality.read();});common.append(quality.wrap);
+        }
+        const instructions=el('details','ap2-guide-topic');instructions.append(el('summary','','AI로 다시 쓰기'));const direction=field('수정 지시',context.direction,{multiline:true,placeholder:'예: 인물은 유지하고 카메라만 멀리'}),scope=field('수정 범위','all',{choices:[['all','전체'],['camera','구도'],['background','배경'],['characters','인물']]});instructions.append(direction.wrap,scope.wrap);
+        instructions.append(button('재분석',async()=>{const before=JSON.stringify(drafts);status.textContent='장면 분석 중…';try{const result=await onAnalyze(structuredClone(drafts),direction.read(),scope.read());if(JSON.stringify(drafts)!==before)throw new Error('분석 중 편집한 내용이 있어 결과로 덮어쓰지 않았습니다.');snapshot();drafts=result;render();status.textContent='분석 완료 · 변경 내용을 확인하세요.';}catch(e){status.textContent='분석 실패 · 기존 편집 내용을 유지했습니다.';throw e;}}));(exact?sceneSide:commonSide).append(instructions);
     }
     function renderCast(){
         const cast=scene().characters??=[];person=Math.max(0,Math.min(person,cast.length-1));
@@ -86,8 +99,8 @@ export function composer({context,scenes,config,onAnalyze,onGenerate,onDraft,pre
         showPerson();placement.select(person);
     }
     function renderFinal(){
-        content.append(el('p','ap2-muted','실제로 보낼 프롬프트입니다. 직접 수정하면 이 장면은 입력한 내용을 그대로 사용합니다. 인물별 프롬프트는 따로 전송됩니다.'));
-        let payload;try{payload=buildPayload(scene(),config,config.seed===-1?0:config.seed);}catch(e){content.append(el('p','ap2-muted',e.message));return;}
+        content.append(el('p','ap2-note','그림체·메인 프롬프트·구도·장면·품질 태그를 합친, 실제로 보낼 프롬프트입니다. 확인만 해도 됩니다. 여기서 직접 고치면 이 장면은 입력한 내용만 그대로 전송합니다.'));
+        let payload;try{payload=buildPayload(scene(),{...withLook(config,config.look??''),references:usableReferences(config.model,config.references??[])},config.seed===-1?0:config.seed);}catch(e){content.append(el('p','ap2-muted',e.message));return;}
         const prompt=field('최종 장면 프롬프트',payload.input,{multiline:true,rows:7}),negative=field('최종 제외 요소',payload.parameters.negative_prompt,{multiline:true,rows:4});content.append(prompt.wrap,negative.wrap);
         for(const f of [prompt,negative])f.input.addEventListener('input',()=>{Object.assign(scene(),{prompt:prompt.read(),negative:negative.read(),camera:'',finalPrompt:true});dirty=true;});
         if(scene().characters.length)content.append(el('p','ap2-muted',`인물 ${scene().characters.length}명의 프롬프트는 인물 · 배치에서 따로 전송됩니다.`));

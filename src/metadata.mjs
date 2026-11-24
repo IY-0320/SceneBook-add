@@ -107,10 +107,7 @@ export function importedConfig(current,result,{model=result.patch.model,relaxBud
     if(!model.startsWith('nai-diffusion-5-')&&patch.transparent===undefined)next.transparent=false;
     // Expanded prompts already contain their quality tags. Keep them once.
     if(forScene)Object.assign(next,{style:'',negative:'',quality:false,references:[],transparent:patch.transparent??false});
-    else {
-        Object.assign(next,{style:result.scene.prompt,negative:result.scene.negative,quality:false});
-        if(!MODELS[model].references&&current.references?.length)throw new Error('현재 참조 적용을 해제한 뒤 V5 설정을 가져오세요.');
-    }
+    else Object.assign(next,{style:result.scene.prompt,negative:result.scene.negative,quality:false});
     validateConfig(next);return next;
 }
 export async function readNovelAiImage(file){
