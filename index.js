@@ -336,7 +336,9 @@ function updateBadge() {
     document.dispatchEvent(new Event('scenebook-workflow-status'));
     const b=document.getElementById('ap2-status');if(!b)return;
     const waiting=queue.items.filter(x=>x.state==='waiting').length;
-    b.textContent=analysisLocks.size?'분석 중':queue.running?`생성 중${waiting?` +${waiting}`:''}`:queue.paused?'일시정지':'';
+    // Written only when it changes: any text change makes SillyTavern restyle the chat.
+    const label=analysisLocks.size?'분석 중':queue.running?`생성 중${waiting?` +${waiting}`:''}`:queue.paused?'일시정지':'';
+    if(b.textContent!==label)b.textContent=label;
 }
 async function deleteIllustration(target,slot) {
     const ensureCurrent=()=>{if(!current(target)||!viewState(target,false)?.slots.includes(slot)||slot.deleted)throw new Error('대상 삽화가 바뀌었습니다. 다시 열어 주세요.');};

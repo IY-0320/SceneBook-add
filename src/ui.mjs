@@ -5,6 +5,11 @@ import { sceneLabel } from './scene-label.mjs';
 export { notice } from './notifications.mjs';
 export { composer } from './editor.mjs';
 
+// SillyTavern restyles a large part of the chat whenever anything in the page
+// is inserted, removed or has its text replaced, and the cost grows with the
+// length of the chat. So nothing here writes what is already on screen.
+export function setText(node, value) { value = String(value ?? ''); if (node.textContent !== value) node.textContent = value; }
+export function setFlag(node, name, value) { value = String(value); if (node.getAttribute(name) !== value) node.setAttribute(name, value); }
 export function el(tag, className = '', value = '') {
     const node = document.createElement(tag); node.className = className;
     if (value) node.textContent = value;
@@ -71,9 +76,17 @@ export function modal(title, subtitle = '') {
 // Long prompts stay fully visible: a text box grows with what is typed in it.
 // Browsers without `field-sizing` get the same result from this measurement.
 const nativeGrow=globalThis.CSS?.supports?.('field-sizing','content')??false;
+const fitting=new Set();let fitFrame=0;
+function fitAll() {
+    fitFrame=0;const list=[...fitting].filter(input=>input.isConnected&&input.clientWidth);fitting.clear();
+    // Reset every box, read every height, then write: three passes, one layout.
+    for(const input of list)input.style.height='auto';
+    const heights=list.map(input=>input.scrollHeight);
+    list.forEach((input,i)=>{input.style.height=`${heights[i]+2}px`;});
+}
 export function fitText(input) {
-    if(nativeGrow||!input.isConnected||!input.clientWidth)return;
-    input.style.height='auto';input.style.height=`${input.scrollHeight+2}px`;
+    if(nativeGrow)return;
+    fitting.add(input);fitFrame||=requestAnimationFrame(fitAll);
 }
 function growing(input) {
     if(nativeGrow)return;
@@ -123,7 +136,7 @@ export function slider(label, value, {min=0,max=1,step=0.05,help=''}={}) {
 // A small set of mutually exclusive choices, shown side by side.
 export function segmented(label,choices,value,onChange=()=>{}){
     const wrap=el('div','ap2-segmented');wrap.setAttribute('role','radiogroup');wrap.setAttribute('aria-label',label);
-    const set=next=>{value=next;for(const b of wrap.children){const on=b.dataset.value===next;b.setAttribute('aria-checked',String(on));b.tabIndex=on?0:-1;}};
+    const set=next=>{value=next;for(const b of wrap.children){const on=b.dataset.value===next;setFlag(b,'aria-checked',on);if(b.tabIndex!==(on?0:-1))b.tabIndex=on?0:-1;}};
     for(const [id,caption]of choices){const b=el('button','ap2-segment',caption);b.type='button';b.dataset.value=id;b.setAttribute('role','radio');b.addEventListener('click',()=>{if(value===id)return;set(id);onChange(id);});wrap.append(b);}
     wrap.addEventListener('keydown',event=>{if(!['ArrowLeft','ArrowRight'].includes(event.key))return;event.preventDefault();const items=[...wrap.children],next=items[(items.findIndex(b=>b.dataset.value===value)+(event.key==='ArrowRight'?1:-1)+items.length)%items.length];next.focus();next.click();});
     set(value);return{wrap,set,read:()=>value,disable(off){for(const b of wrap.children)b.disabled=off;}};
@@ -131,7 +144,7 @@ export function segmented(label,choices,value,onChange=()=>{}){
 // One choice out of many, as wrapping chips. `title` explains a chip on hover.
 export function choiceChips(label,choices,value,onChange=()=>{}){
     const wrap=el('div','ap2-chips');wrap.setAttribute('role','radiogroup');wrap.setAttribute('aria-label',label);
-    const set=next=>{value=next;for(const chip of wrap.children)chip.setAttribute('aria-checked',String(chip.dataset.value===next));};
+    const set=next=>{value=next;for(const chip of wrap.children)setFlag(chip,'aria-checked',chip.dataset.value===next);};
     for(const [id,caption,title]of choices){const chip=el('button','ap2-chip-button',caption);chip.type='button';chip.dataset.value=id;chip.setAttribute('role','radio');if(title)chip.title=title;chip.addEventListener('click',()=>{if(value===id)return;set(id);onChange(id);});wrap.append(chip);}
     set(value);return{wrap,set,read:()=>value};
 }
@@ -146,14 +159,35 @@ export function foldout(parent,title,open=false){
     const group=el('details','ap2-group');group.open=open;group.append(el('summary','',title));
     const content=el('div','ap2-group-content');group.append(content);parent.append(group);return content;
 }
-// Every edit inside `page` is saved at once; the line below it says so.
+// Saves waiting for a pause in typing. They are written out at once when the page goes to the background.
+const waiting=new Set();
+if(typeof document!=='undefined'){
+    const flushAll=()=>{for(const flush of [...waiting])flush();};
+    document.addEventListener('visibilitychange',()=>{if(document.hidden)flushAll();});
+    globalThis.addEventListener?.('pagehide',flushAll);
+}
+const typed=target=>target instanceof HTMLTextAreaElement||(target instanceof HTMLInputElement&&!['checkbox','radio','file'].includes(target.type));
+// Every edit inside `page` is saved without a save button. A choice is saved at
+// once; typing and dragging are saved a moment after the last key, and at once
+// on leaving the field, so a keystroke costs no settings pass and no redraw.
+// `page.flush()` writes out anything still waiting.
 export function saveBar(page,save){
     const row=el('div','ap2-savebar'),state=el('span','ap2-muted','');
-    let revision=0;
-    const commit=async()=>{const version=++revision;page.dataset.dirty='true';try{await save();if(version===revision){page.dataset.dirty='false';state.textContent='저장됨';row.dataset.state='saved';}}catch(e){if(version===revision){state.textContent=`저장 안 됨 · ${e.message}`;row.dataset.state='error';}}};
-    // Commit values to ST's settings on every edit. ST batches disk writes; a
-    // closed window, tab switch or extension update cannot discard form-only edits.
-    page.addEventListener('input',commit);page.addEventListener('change',commit);
+    let revision=0,timer=0,last=0;
+    const commit=async()=>{
+        clearTimeout(timer);timer=0;waiting.delete(commit);last=performance.now();
+        const version=++revision;setFlag(page,'data-dirty','true');
+        try{await save();if(version===revision){setFlag(page,'data-dirty','false');setText(state,'저장됨');setFlag(row,'data-state','saved');}}
+        catch(e){if(version===revision){setText(state,`저장 안 됨 · ${e.message}`);setFlag(row,'data-state','error');}}
+    };
+    page.addEventListener('input',event=>{
+        if(!typed(event.target)){void commit();return;}
+        // Marked at the first key, so nothing rebuilds this page under the cursor.
+        setFlag(page,'data-dirty','true');clearTimeout(timer);timer=setTimeout(commit,350);waiting.add(commit);
+    });
+    // A choice fires both events; the second one has nothing left to save.
+    page.addEventListener('change',()=>{if(timer||performance.now()-last>60)void commit();});
+    page.flush=()=>{if(timer)void commit();};
     state.textContent='바꾸면 바로 저장됩니다';state.setAttribute('role','status');row.append(state);page.append(row);
 }
 export function confirmAction(title,message,confirmLabel='삭제'){

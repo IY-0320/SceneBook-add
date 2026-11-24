@@ -11,14 +11,14 @@ import { INKS } from './ornaments.mjs';
 import { charactersPage } from './characters-ui.mjs';
 import { referencesPage } from './reference-ui.mjs';
 import { galleryPage } from './gallery-ui.mjs';
-import { el, button, iconButton, actionMenu, modal, field, addField, readFields, segmented, choiceChips, section, foldout, saveBar, confirmAction, downloadJson, notice, syncTone, fitText } from './ui.mjs';
+import { el, button, iconButton, actionMenu, modal, field, addField, readFields, segmented, choiceChips, section, foldout, saveBar, confirmAction, downloadJson, notice, syncTone, fitText, setText, setFlag } from './ui.mjs';
 
 const PAGES=[
     ['home','시작','fa-house'],['prompt','프롬프트','fa-pen-nib'],['image','그림 설정','fa-sliders'],['characters','인물','fa-user'],
     ['references','참조','fa-images'],['display','표시','fa-eye'],['gallery','갤러리','fa-film'],['queue','작업','fa-list-check'],
 ];
-// Pages that keep their form while the window is open. The rest are rebuilt on every visit.
-const KEPT=['prompt','image','display','characters','references'],SETTINGS=['prompt','image','display','references'];
+// Pages whose content comes from the saved settings.
+const SETTINGS=['prompt','image','display','references'];
 const SIZES=[['portrait','세로',832,1216],['landscape','가로',1216,832],['square','정사각',1024,1024]];
 
 function installationHelp(){
@@ -35,11 +35,11 @@ function workflowControls(api){
     toggle.input.addEventListener('change',()=>{const c=api.settings(),on=toggle.read();api.saveSettings({...c,promptInjection:on,automatic:on&&c.automatic==='off'?'generate':c.automatic});});
     const refresh=()=>{
         const c=api.settings(),on=workflowEnabled(c),every=c.every===1?'답변마다':`답변 ${c.every}개마다`;
-        toggle.input.checked=on;mode.set(c.automatic==='review'?'review':'generate');mode.wrap.hidden=!on;
-        help.textContent=!on?'꺼져 있습니다. 답변에 삽화 지시를 넣지 않고 자동으로 그리지도 않습니다. 필요할 때 수동 생성으로 그릴 수 있습니다.'
+        toggle.input.checked=on;mode.set(c.automatic==='review'?'review':'generate');if(mode.wrap.hidden!==!on)mode.wrap.hidden=!on;
+        setText(help,!on?'꺼져 있습니다. 답변에 삽화 지시를 넣지 않고 자동으로 그리지도 않습니다. 필요할 때 수동 생성으로 그릴 수 있습니다.'
             :c.automatic==='review'?'AI가 답변과 함께 쓴 삽화 지시를 초안으로만 저장합니다. 확인한 뒤 직접 생성하세요.'
-            :`AI가 답변과 함께 삽화 지시를 쓰고, ${every} 그림을 자동으로 만들어 답변 아래에 넣습니다.`;
-        const text=api.status?.()||'';status.textContent=text;status.hidden=!text;
+            :`AI가 답변과 함께 삽화 지시를 쓰고, ${every} 그림을 자동으로 만들어 답변 아래에 넣습니다.`);
+        const text=api.status?.()||'';setText(status,text);if(status.hidden!==!text)status.hidden=!text;
     };
     return{toggle,help,mode,status,refresh};
 }
@@ -50,23 +50,25 @@ function homePage(page,{api,open,close,listen}){
     for(const [key,title]of [['server','서버 플러그인'],['key','NovelAI 키'],['chat','채팅']]){
         const row=el('div','ap2-setup-row'),mark=el('i','ap2-setup-mark fa-solid'),text=el('div','ap2-setup-text'),detail=el('p','ap2-muted');mark.setAttribute('aria-hidden','true');
         text.append(el('strong','',title),detail);row.append(mark,text);setup.append(row);
-        rows[key]={row,set(state,message){row.dataset.state=state;mark.className=`ap2-setup-mark fa-solid ${state==='ok'?'fa-circle-check':state==='wait'?'fa-circle-notch':'fa-circle-exclamation'}`;detail.textContent=message;}};rows[key].set('wait','확인 중…');
+        rows[key]={row,set(state,message){
+            const icon=`ap2-setup-mark fa-solid ${state==='ok'?'fa-circle-check':state==='wait'?'fa-circle-notch':'fa-circle-exclamation'}`;
+            setFlag(row,'data-state',state);if(mark.className!==icon)mark.className=icon;setText(detail,message);
+        }};rows[key].set('wait','확인 중…');
     }
     const help=button('설치 안내',installationHelp,false,'fa-circle-info');rows.server.row.append(help);
     setup.append(button('다시 확인',()=>check(true),false,'fa-rotate-right'));
-    let version='';
+    const show=(node,visible)=>{if(node.hidden===visible)node.hidden=!visible;};
     async function check(force=false){
         const chat=api.hasChat();rows.chat.set(chat?'ok':'todo',chat?'캐릭터 채팅이 열려 있습니다.':'그림을 넣을 캐릭터 채팅을 열어 주세요.');
-        rows.server.set('wait','확인 중…');let ready=false;
+        let ready=false,version='';
         try{
-            const health=await api.health(force);version=health.version;ready=health.hasKey&&chat;help.hidden=true;
+            const health=await api.health(force);version=health.version;ready=health.hasKey&&chat;show(help,false);
             rows.server.set('ok',`연결됨 · 서버 ${health.version}`);
             rows.key.set(health.hasKey?'ok':'todo',health.hasKey?'저장되어 있습니다.':'SillyTavern의 API 연결에서 NovelAI를 고르고 키를 저장하세요.');
-        }catch(e){help.hidden=false;rows.server.set('todo',e.message);rows.key.set('wait','서버가 연결되면 확인합니다.');}
-        if(!page.isConnected)return;
-        setup.hidden=ready;banner.hidden=!ready;
-        const old=version&&!serverAtLeast(version,0,5);banner.dataset.state=old?'warning':'ready';
-        banner.textContent=old?`준비됐습니다 · 서버 ${version} · V5 참조를 쓰려면 서버 플러그인을 0.5.0으로 교체하세요.`:`준비됐습니다 · 서버 ${version}`;
+        }catch(e){show(help,true);rows.server.set('todo',e.message);rows.key.set('wait','서버가 연결되면 확인합니다.');}
+        show(setup,!ready);show(banner,ready);
+        const old=version&&!serverAtLeast(version,0,5);setFlag(banner,'data-state',old?'warning':'ready');
+        setText(banner,old?`준비됐습니다 · 서버 ${version} · V5 참조를 쓰려면 서버 플러그인을 0.5.0으로 교체하세요.`:`준비됐습니다 · 서버 ${version}`);
     }
     banner.hidden=true;
     const auto=section(page,'자동 삽화'),flow=workflowControls(api),limits=el('div','ap2-grid ap2-grid-3'),fields={},c=api.settings();
@@ -75,7 +77,7 @@ function homePage(page,{api,open,close,listen}){
     addField(limits,fields,'maxScenes','답변당 장면',c.maxScenes,{type:'number',min:1,max:6,step:1});
     addField(limits,fields,'sessionLimit','접속당 한도',c.sessionLimit,{type:'number',min:1,max:100,step:1});
     const limitState=el('p','ap2-muted');limitState.setAttribute('role','status');
-    limits.addEventListener('input',()=>{try{api.saveSettings({...api.settings(),...readFields(fields)});limitState.textContent='';}catch(e){limitState.textContent=`저장 안 됨 · ${e.message}`;}});
+    limits.addEventListener('change',()=>{try{api.saveSettings({...api.settings(),...readFields(fields)});setText(limitState,'');}catch(e){setText(limitState,`저장 안 됨 · ${e.message}`);}});
     auto.append(flow.help,flow.mode.wrap,limits,limitState,flow.status);
     const actions=section(page,'바로 하기'),quick=el('div','ap2-quick');
     quick.append(
@@ -84,27 +86,30 @@ function homePage(page,{api,open,close,listen}){
         button('이미지에서 설정 읽기',()=>imageImport(api,()=>open('prompt',true)),false,'fa-file-image'),
         button('사용법',showGuide,false,'fa-circle-question'));
     actions.append(quick,el('p','ap2-muted','마지막 답변에 적용됩니다. 다른 답변은 그 답변 메뉴(…)의 마법봉·풍경 아이콘으로, 이미 나온 그림은 그림 위의 연필·회전 화살표로.'));
-    const summary=section(page,'지금 설정'),list=el('div','ap2-summary');summary.append(list);
+    // Where each setting lives. The four rows stay; only their text changes.
+    const summary=section(page,'지금 설정'),list=el('div','ap2-summary'),values={};summary.append(list);
+    for(const [id,title]of [['prompt','프롬프트'],['image','그림 설정'],['characters','인물'],['references','참조']]){
+        const row=el('button','ap2-summary-row');row.type='button';values[id]=el('span','ap2-summary-value');
+        row.append(el('span','ap2-summary-title',title),values[id],el('i','fa-solid fa-chevron-right'));row.addEventListener('click',()=>void open(id));list.append(row);
+    }
     function describe(){
         const s=api.settings(),look=LOOKS.find(([id])=>id===s.look)?.[1],visual=api.visualSettings(),applied=usableReferences(s.model,s.references??[]).length;
-        list.replaceChildren();
-        for(const [id,title,value]of [
-            ['prompt','프롬프트',[look&&s.look?`그림체 ${look}`:'',s.style?s.style:'메인 프롬프트 없음'].filter(Boolean).join(' · ')],
-            ['image','그림 설정',`${MODELS[s.model]?.label??s.model} · ${s.width} × ${s.height} · ${s.steps} Steps`],
-            ['characters','인물',visual.library?.length?visual.library.map(x=>x.name).join(', '):'등록한 인물 없음'],
-            ['references','참조',applied?`${applied}장 적용 중`:'사용 안 함'],
-        ]){
-            const row=el('button','ap2-summary-row');row.type='button';row.append(el('span','ap2-summary-title',title),el('span','ap2-summary-value',value),el('i','fa-solid fa-chevron-right'));
-            row.addEventListener('click',()=>open(id));list.append(row);
-        }
+        setText(values.prompt,[look&&s.look?`그림체 ${look}`:'',s.style?s.style.slice(0,120):'메인 프롬프트 없음'].filter(Boolean).join(' · '));
+        setText(values.image,`${MODELS[s.model]?.label??s.model} · ${s.width} × ${s.height} · ${s.steps} Steps`);
+        setText(values.characters,visual.library?.length?visual.library.map(x=>x.name).join(', ').slice(0,120):'등록한 인물 없음');
+        setText(values.references,applied?`${applied}장 적용 중`:'사용 안 함');
     }
+    // Brought up to date when it is on screen; changes made elsewhere wait until it is shown again.
+    let stale=false;
     const refresh=()=>{
-        flow.refresh();describe();const s=api.settings();
-        for(const [key,f]of Object.entries(fields))if(document.activeElement!==f.input)f.input.value=s[key];
-        limits.hidden=!workflowEnabled(s);
+        if(page.hidden||!page.isConnected){stale=true;return;}
+        stale=false;flow.refresh();describe();const s=api.settings();
+        for(const [key,f]of Object.entries(fields))if(document.activeElement!==f.input&&f.input.value!==String(s[key]))f.input.value=s[key];
+        show(limits,workflowEnabled(s));
     };
-    listen(['scenebook-workflow-status','scenebook-settings-changed','scenebook-visual-changed'],refresh);listen(['scenebook-context-changed'],()=>void check());
-    refresh();void check();
+    page.refresh=()=>{if(stale)refresh();void check();};
+    listen(['scenebook-workflow-status','scenebook-settings-changed','scenebook-visual-changed'],refresh);listen(['scenebook-context-changed'],()=>{if(page.hidden)stale=true;else void check();});
+    flow.refresh();describe();show(limits,workflowEnabled(c));void check();
 }
 function promptPage(page,{api,open}){
     const c=api.settings(),fields={};
@@ -137,7 +142,9 @@ function imagePage(page,{api,open}){
     const modelBox=section(page,'모델'),modelHelp=el('p','ap2-muted');
     const model=addField(modelBox,fields,'model','NovelAI 모델',c.model,{choices:Object.entries(MODELS).map(([id,m])=>[id,m.label])});modelBox.append(modelHelp);
     const sizeBox=section(page,'크기');
-    const preset=segmented('크기',[...SIZES.map(([id,label,w,h])=>[id,`${label} ${w}×${h}`]),['custom','직접 입력']],'custom',value=>{const size=SIZES.find(([id])=>id===value);if(!size)return;fields.width.input.value=size[2];fields.height.input.value=size[3];page.dispatchEvent(new Event('input'));});
+    const preset=segmented('크기',[...SIZES.map(([id,label])=>[id,label]),['custom','직접']],'custom',value=>{const size=SIZES.find(([id])=>id===value);if(!size)return;fields.width.input.value=size[2];fields.height.input.value=size[3];page.dispatchEvent(new Event('input'));});
+    // Name above, pixels below: four choices fit one row on any phone and font size.
+    for(const choice of preset.wrap.children){const size=SIZES.find(([id])=>id===choice.dataset.value);choice.replaceChildren(el('span','',choice.textContent),el('small','',size?`${size[2]}×${size[3]}`:'입력'));}
     preset.wrap.classList.add('ap2-size-presets');sizeBox.append(preset.wrap);
     const dimensions=el('div','ap2-grid');sizeBox.append(dimensions);
     addField(dimensions,fields,'width','가로',c.width,{type:'number',min:64,max:2048,step:64});
@@ -242,42 +249,97 @@ export function studio(api,{page:first='home',host=null}={}){
         headerClose.replaceWith(headerActions);headerActions.append(button('사용법',showGuide,false,'fa-circle-question'),headerClose);
         frame.body.append(nav,pages);
     }
-    const cached=new Map(),state={scope:null},instance=`ap2-${crypto.randomUUID()}`,watchers=new Map();let activeId=first,pageEvents=new Map();
-    // A page's listeners end when that page is rebuilt or the window closes.
-    const stop=id=>{pageEvents.get(id)?.abort();pageEvents.delete(id);};
+    // Each page is built once and kept. Moving between tabs only changes which
+    // one is shown: building a page inserts elements, and in SillyTavern every
+    // insertion restyles a large part of the chat.
+    const cached=new Map(),building=new Map(),pageEvents=new Map(),state={scope:null},instance=`ap2-${crypto.randomUUID()}`,watchers=new Map();let activeId=first;
+    const loading=el('p','ap2-empty ap2-loading','불러오는 중…');loading.hidden=true;pages.append(loading);
+    const frame=()=>new Promise(resolve=>requestAnimationFrame(()=>resolve()));
+    const display=id=>{const page=cached.get(id);for(const node of pages.children){const on=node===(page??loading);if(node.hidden===on)node.hidden=!on;}};
+    // What a page was built from. A page is rebuilt only when this no longer matches.
+    const DEPENDS={prompt:['look','style','negative','quality','leanPrompt','analysisPrompt','injectionPrompt','model'],
+        image:['model','width','height','autoSize','steps','scale','budgetGuard','sampler','scheduler','seed','cfgRescale','useCoords','useOrder','transparent','profileId','analysisMode','contextMessages'],
+        display:['placement','displayWidth','compact','frame','frameWide','frameInk'],references:['model','references']};
+    const signature=id=>{
+        if(DEPENDS[id]){const s=api.settings();return JSON.stringify([DEPENDS[id].map(key=>s[key]),id==='image'?(s.presets??[]).map(p=>p.name):id==='display'?(s.customFrames??[]).map(f=>f.id):0]);}
+        if(id==='characters')return `${api.contextKey()}`;
+        if(id==='gallery')return `${api.contextKey()}|${api.chatImages().length}`;
+        if(id==='queue')return JSON.stringify([api.queue().map(item=>[item.state,item.label,item.error]),api.queuePaused(),api.usage(),api.settings().sessionLimit,api.pendingDrafts().length]);
+        return '';
+    };
+    const outdated=(id,page)=>!!page.dataset.failed||page.dataset.stale==='true'||(page.dataset.dirty!=='true'&&page.dataset.signature!==signature(id));
+    // Builds a page off screen and puts it in place in one step.
+    const build=async(id,forced=false)=>{
+        const page=el('section','ap2-page'),events=new AbortController();building.set(id,page);
+        page.id=`${instance}-page-${id}`;page.dataset.page=id;page.dataset.signature=signature(id);page.setAttribute('role','tabpanel');page.setAttribute('aria-labelledby',`${instance}-tab-${id}`);
+        const listen=(names,handler)=>{for(const name of names)document.addEventListener(name,handler,{signal:events.signal});};
+        try{await BUILDERS[id](page,{api,open,state,listen,forced,close:()=>dialog?.close(),isCurrent:candidate=>building.get(id)===candidate||cached.get(id)===candidate});}
+        catch(e){page.dataset.failed='true';page.append(el('p','ap2-empty',e.message));}
+        if(building.get(id)!==page){events.abort();return;}
+        building.delete(id);pageEvents.get(id)?.abort();pageEvents.set(id,events);
+        const previous=cached.get(id);cached.set(id,page);page.hidden=activeId!==id;
+        if(previous)previous.replaceWith(page);else pages.append(page);
+        if(activeId===id)display(id);
+    };
     const open=async(id,refresh=false)=>{
         if(!BUILDERS[id])id='home';
+        cached.get(activeId)?.flush?.();
         activeId=id;
-        for(const b of nav.children){const active=b.dataset.page===id;b.setAttribute('aria-selected',String(active));b.tabIndex=active?0:-1;}
-        for(const p of pages.children)p.hidden=true;
+        for(const b of nav.children){const active=b.dataset.page===id;setFlag(b,'aria-selected',active);if(b.tabIndex!==(active?0:-1))b.tabIndex=active?0:-1;}
         const kept=cached.get(id);
-        if(kept&&!refresh&&!kept.dataset.failed&&KEPT.includes(id)&&(id!=='characters'||kept.dataset.contextKey===api.contextKey())){kept.hidden=false;return;}
-        kept?.remove();stop(id);
-        const page=el('section','ap2-page');page.id=`${instance}-page-${id}`;page.dataset.page=id;page.setAttribute('role','tabpanel');page.setAttribute('aria-labelledby',`${instance}-tab-${id}`);pages.append(page);cached.set(id,page);pages.scrollTop=0;
-        const events=new AbortController();pageEvents.set(id,events);
-        const listen=(names,handler)=>{for(const name of names)document.addEventListener(name,handler,{signal:events.signal});};
-        try{await BUILDERS[id](page,{api,open,state,listen,close:()=>dialog?.close(),isCurrent:candidate=>cached.get(id)===candidate&&candidate.isConnected});}
-        catch(e){page.dataset.failed='true';page.append(el('p','ap2-empty',e.message));}
+        // Shown at once, also while a newer copy is being prepared behind it.
+        display(id);
+        if(kept&&!refresh&&!outdated(id,kept)){kept.refresh?.();return;}
+        if(building.has(id)&&!refresh)return;
+        // The tab highlight is painted before the heavier work of building a page.
+        await frame();
+        await build(id,refresh);
     };
-    for(const [id,label,icon]of PAGES){const b=button(label,()=>open(id),false,icon);b.classList.add('ap2-nav-item');b.dataset.page=id;b.id=`${instance}-tab-${id}`;b.setAttribute('role','tab');b.setAttribute('aria-controls',`${instance}-page-${id}`);nav.append(b);}
+    // Tabs never wait on the page: the button is not disabled while it builds.
+    for(const [id,label,icon]of PAGES){const b=button(label,()=>{void open(id);},false,icon);b.classList.add('ap2-nav-item');b.dataset.page=id;b.id=`${instance}-tab-${id}`;b.setAttribute('role','tab');b.setAttribute('aria-controls',`${instance}-page-${id}`);nav.append(b);}
     nav.addEventListener('keydown',event=>{
         const keys={ArrowLeft:-1,ArrowUp:-1,ArrowRight:1,ArrowDown:1};if(!(event.key in keys)&&!['Home','End'].includes(event.key))return;
         event.preventDefault();const buttons=[...nav.children],index=buttons.findIndex(b=>b.dataset.page===activeId),next=event.key==='Home'?0:event.key==='End'?buttons.length-1:(index+keys[event.key]+buttons.length)%buttons.length;buttons[next].focus();buttons[next].click();
     });
-    const drop=id=>{cached.get(id)?.remove();cached.delete(id);stop(id);};
-    const refreshCharacters=()=>{const page=cached.get('characters');if(!page)return;page.dispatchEvent(new Event('scenebook-visual-status'));if(page.dataset.dirty==='true')return;if(activeId==='characters')void open('characters',true);else drop('characters');};
-    // A page that is saving its own edit is left alone; the others are rebuilt from the new settings.
-    watchers.set('scenebook-settings-changed',()=>{for(const id of SETTINGS){const page=cached.get(id);if(!page||page.dataset.dirty==='true')continue;if(activeId===id)void open(id,true);else drop(id);}refreshCharacters();});
-    watchers.set('scenebook-visual-changed',refreshCharacters);
-    watchers.set('scenebook-context-changed',()=>{state.scope=null;const page=cached.get('characters');if(page?.dataset.dirty==='true')notice('저장되지 않은 인물 입력이 있었습니다. 이전 채팅에는 마지막으로 저장된 설정이 유지됩니다.');drop('characters');if(activeId==='characters')void open('characters',true);});
-    watchers.set('scenebook-workflow-status',()=>{if(activeId==='queue'&&!document.querySelector('.ap2-action-panel:popover-open'))void open('queue');});
+    // A change made elsewhere rebuilds the page on screen if it shows that value.
+    // Pages out of sight are left alone and checked when they are opened.
+    const revisit=id=>{const page=cached.get(id);if(page&&activeId===id&&outdated(id,page))void open(id,true);};
+    watchers.set('scenebook-settings-changed',()=>{
+        for(const id of SETTINGS){
+            const page=cached.get(id);if(!page)continue;
+            // The page being edited already shows what it has just saved.
+            if(page.dataset.dirty==='true')page.dataset.signature=signature(id);else revisit(id);
+        }
+    });
+    const charactersChanged=()=>{
+        const page=cached.get('characters');if(!page)return;
+        page.dispatchEvent(new Event('scenebook-visual-status'));
+        if(page.dataset.dirty==='true')return;
+        page.dataset.stale='true';revisit('characters');
+    };
+    watchers.set('scenebook-visual-changed',charactersChanged);
+    watchers.set('scenebook-context-changed',()=>{
+        state.scope=null;const page=cached.get('characters');
+        if(page?.dataset.dirty==='true'){notice('저장되지 않은 인물 입력이 있었습니다. 이전 채팅에는 마지막으로 저장된 설정이 유지됩니다.');page.dataset.dirty='false';}
+        if(page)page.dataset.stale='true';
+        revisit('characters');revisit('gallery');
+    });
+    watchers.set('scenebook-workflow-status',()=>{if(!document.querySelector('.ap2-action-panel:popover-open')){revisit('queue');revisit('gallery');}});
     for(const [name,handler]of watchers)document.addEventListener(name,handler);
     // The drawer stays for the whole session; only a window has listeners to give back.
     if(dialog){
-        dialog.addEventListener('close',()=>{for(const [name,handler]of watchers)document.removeEventListener(name,handler);for(const id of [...pageEvents.keys()])stop(id);current=null;},{once:true});
+        dialog.addEventListener('close',()=>{
+            for(const page of cached.values())page.flush?.();
+            for(const [name,handler]of watchers)document.removeEventListener(name,handler);
+            for(const events of pageEvents.values())events.abort();
+            current=null;
+        },{once:true});
         current={dialog,open};
     }
-    void open(first);return dialog??host;
+    // In the drawer the plain settings pages are made ready at start-up, while no chat
+    // is on screen yet and building costs next to nothing, so their first visit is instant too.
+    void open(first).then(async()=>{if(host)for(const id of ['prompt','image','display'])if(!cached.has(id)&&!building.has(id))await build(id);});
+    return dialog??host;
 }
 // The drawer in SillyTavern's extension list. Every page is right there once it is opened.
 export function mountSettings(api,container){

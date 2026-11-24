@@ -57,10 +57,10 @@
 .ap2-actions [aria-pressed=true] { background: var(--ap2-fg); color: var(--ap2-on); }
 
 /* Segmented choices and tabs: a soft track with a raised current item. */
-.ap2-segmented, .ap2-editor-tabs { display: flex; gap: 2px; padding: 3px; border-radius: calc(var(--ap2-r) + 2px); background: var(--ap2-2); }
+.ap2-segmented, .ap2-editor-tabs { display: flex; flex-wrap: wrap; gap: 2px; padding: 3px; border-radius: calc(var(--ap2-r) + 2px); background: var(--ap2-2); }
 .ap2-segmented { display: inline-flex; min-width: 0; max-width: 100%; }
 :where(#ap2-settings, .ap2-dialog) :is(.ap2-segment, .ap2-editor-tabs .ap2-button) {
-    all: unset; box-sizing: border-box; flex: 1 1 0; min-width: 0; min-height: calc(var(--ap2-h) - 6px); padding: 0 12px; border-radius: calc(var(--ap2-r) - 2px);
+    all: unset; box-sizing: border-box; flex: 1 1 auto; min-width: max-content; min-height: calc(var(--ap2-h) - 6px); padding: 0 12px; border-radius: calc(var(--ap2-r) - 2px);
     display: inline-flex; align-items: center; justify-content: center; gap: 6px; color: var(--ap2-muted); font: inherit; font-size: .86em; font-weight: 500;
     white-space: nowrap; cursor: pointer; user-select: none; -webkit-tap-highlight-color: transparent; transition: background .12s, color .12s;
 }
@@ -102,13 +102,13 @@
 .ap2-hostbar { display: flex; align-items: flex-start; gap: 6px; margin: 0 0 10px; }
 .ap2-hostbar-tools { flex: none; display: grid; gap: 4px; }
 .ap2-hostbar-tools .ap2-button { --ap2-h: 34px; }
-.ap2-settings .ap2-nav { flex: 1 1 auto; min-width: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; width: auto; padding: 0; overflow: visible; }
+.ap2-settings .ap2-nav { flex: 1 1 auto; min-width: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(max(5.4em, 22%), 1fr)); gap: 4px; width: auto; padding: 0; overflow: visible; }
 .ap2-settings .ap2-nav .ap2-nav-item { --ap2-h: 34px; width: auto; justify-content: center; gap: 6px; padding: 0 4px; background: var(--ap2-1); font-size: .84em; }
 .ap2-settings .ap2-nav .ap2-nav-item[aria-selected=true] { background: var(--ap2-fg); color: var(--ap2-on); }
 .ap2-settings .ap2-nav .ap2-nav-item > i { display: none; }
 .ap2-settings .ap2-pages { padding: 0; overflow: visible; }
 @container (min-width: 620px) {
-    .ap2-settings .ap2-nav { grid-template-columns: repeat(8, minmax(0, 1fr)); }
+    .ap2-settings .ap2-nav { grid-template-columns: repeat(auto-fit, minmax(5.4em, 1fr)); }
     .ap2-hostbar-tools { grid-auto-flow: column; }
 }
 
@@ -174,7 +174,9 @@ details.ap2-group[open] { padding-bottom: 12px; }
 .ap2-slider-controls { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .ap2-slider-controls > input[type=range] { flex: 1 1 auto; min-width: 0; margin: 0; }
 :is(#ap2-settings, .ap2-dialog) .ap2-slider-controls > input[type=number] { flex: none; width: 82px; text-align: center; }
-.ap2-size-presets { display: flex; margin: 0 0 4px; }
+.ap2-segmented.ap2-size-presets { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); margin: 0 0 4px; }
+:where(#ap2-settings, .ap2-dialog) .ap2-size-presets .ap2-segment { flex-direction: column; gap: 0; min-width: 0; padding: 5px 2px; line-height: 1.25; }
+.ap2-size-presets .ap2-segment > small { font-size: .8em; font-weight: 400; opacity: .75; }
 .ap2-savebar { min-height: 1.5em; padding: 6px 4px; }
 .ap2-savebar[data-state=saved] > span::before { content: '✓ '; }
 .ap2-savebar[data-state=error] > span { color: var(--ap2-danger); }
@@ -469,7 +471,7 @@ details.ap2-group[open] { padding-bottom: 12px; }
 /* A narrow window puts the menu in a row above the page. */
 @media (max-width: 780px) {
     .ap2-studio > .ap2-body { flex-direction: column; }
-    .ap2-studio .ap2-nav { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; width: auto; padding: 0 12px 8px; overflow: visible; }
+    .ap2-studio .ap2-nav { display: grid; grid-template-columns: repeat(auto-fit, minmax(max(5.4em, 22%), 1fr)); gap: 4px; width: auto; padding: 0 12px 8px; overflow: visible; }
     .ap2-studio .ap2-nav .ap2-nav-item { --ap2-h: 36px; width: auto; justify-content: center; gap: 6px; padding: 0 4px; background: var(--ap2-1); font-size: .84em; }
     .ap2-studio .ap2-nav .ap2-nav-item[aria-selected=true] { background: var(--ap2-fg); color: var(--ap2-on); }
     .ap2-studio .ap2-nav .ap2-nav-item > i { display: none; }

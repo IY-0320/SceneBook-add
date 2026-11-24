@@ -1,7 +1,10 @@
 import { sceneLabel, sceneHint } from './scene-label.mjs';
 import { el, button, iconButton, actionMenu, modal, inspect, viewer } from './ui.mjs';
 
-export async function galleryPage(page,{api,open,isCurrent}) {
+// The server's job list is read once and reused; it is read again on request
+// or after a couple of minutes. New pictures of this chat come from the chat itself.
+let serverJobs=null;
+export async function galleryPage(page,{api,open,isCurrent,forced}) {
     const refresh=()=>open('gallery',true);
     const bar=el('div','ap2-gallery-toolbar'),search=el('input'),filter=el('select');
     search.type='search';search.placeholder='제목·프롬프트 검색';search.setAttribute('aria-label','갤러리 검색');
@@ -11,7 +14,8 @@ export async function galleryPage(page,{api,open,isCurrent}) {
     const count=el('p','ap2-muted'),list=el('div','ap2-gallery'),pager=el('div','ap2-gallery-pager');count.setAttribute('role','status');
     page.append(bar,count,list,pager);count.textContent='그림을 불러오는 중…';
     const scope=api.contextKey(),chatJobs=api.chatImages(),chatIds=new Set(chatJobs.map(j=>j.id));let recent=[],failure='';
-    try{recent=await api.jobs();}catch(e){failure=e.message;}
+    if(forced||!serverJobs||Date.now()-serverJobs.time>120000){try{serverJobs={time:Date.now(),jobs:await api.jobs()};}catch(e){failure=e.message;}}
+    recent=serverJobs?.jobs??[];
     if(!isCurrent(page))return;
     if(scope!==api.contextKey()){count.textContent='채팅이 바뀌었습니다. 새로고침을 눌러 주세요.';return;}
     // Retain older images saved with this chat, even beyond the server's recent
@@ -41,7 +45,7 @@ export async function galleryPage(page,{api,open,isCurrent}) {
                 ],more:[{label:'AI 검수',icon:'fa-magnifying-glass',run:()=>api.review(job)},{label:'생성 기록',icon:'fa-file-lines',run:()=>inspect(job)}]});
             });
             card.className='ap2-gallery-item';card.replaceChildren();card.title=title;card.setAttribute('aria-label',`${title} · ${ready?'이미지 보기':'작업 확인'}`);
-            if(ready){const img=el('img');img.src=job.url;img.loading='lazy';img.decoding='async';img.alt='';card.append(img);}
+            if(ready){const img=el('img');img.loading='lazy';img.decoding='async';img.alt='';img.src=job.url;card.append(img);}
             else card.append(el('span','ap2-gallery-failed',job.status==='failed'?'실패':job.status==='running'?'생성 중':'확인 필요'));
             // Only a title someone wrote is shown over the picture; the prompt is the tooltip.
             if(label)card.append(el('span','ap2-gallery-title',label));list.append(card);

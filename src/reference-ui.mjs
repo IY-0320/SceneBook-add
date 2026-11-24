@@ -44,7 +44,7 @@ export async function referencesPage(page,{api,open,isCurrent}){
     const rows=[];
     for(const ref of refs){
         const saved=selected.find(x=>x.id===ref.id),card=el('article','ap2-reference'),thumb=el('div','ap2-reference-thumb'),main=el('div','ap2-reference-main');
-        if(api.isImage(ref.url)){const img=el('img');img.src=ref.url;img.alt='';img.loading='lazy';thumb.append(img);}
+        if(api.isImage(ref.url)){const img=el('img');img.loading='lazy';img.decoding='async';img.alt='';img.src=ref.url;thumb.append(img);}
         const enabled=field('사용',!!saved,{type:'checkbox'});enabled.wrap.classList.add('ap2-reference-toggle');
         const remove=iconButton('참조 삭제','fa-trash-can',async()=>{
             if(!await confirmAction('참조 삭제',`“${ref.label}”을 삭제할까요? 업로드한 원본을 서버에서 삭제하고 적용 목록과 프리셋에서도 해제합니다. 이미 생성한 삽화는 유지됩니다.`))return;
