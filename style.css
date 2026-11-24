@@ -303,6 +303,10 @@ details.ap2-group[open] { padding-bottom: 12px; }
 /* Scene editor and the picture edit window. */
 .ap2-editor { width: min(1000px, 96vw); }
 .ap2-quick-edit { width: min(1040px, 96vw); }
+.ap2-dialog.ap2-manual { width: min(600px, 94vw); }
+.ap2-manual .ap2-excerpt { max-height: 92px; margin: 0 0 12px; color: var(--ap2-muted); }
+.ap2-manual-modes { display: flex; }
+.ap2-manual .ap2-manual-modes + p { margin: 8px 2px 4px; }
 .ap2-editor-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .ap2-editor-toolbar > .ap2-field { display: flex; gap: 10px; margin: 0; flex: 1 1 160px; }
 .ap2-editor-toolbar > .ap2-field > .ap2-field-label { white-space: nowrap; color: var(--ap2-muted); }
@@ -414,7 +418,7 @@ details.ap2-group[open] { padding-bottom: 12px; }
 }
 @media (max-width: 650px) {
     /* Dialogs fill the screen; small prompts and menus rise from the bottom. */
-    .ap2-dialog, .ap2-dialog.ap2-viewer, .ap2-dialog.ap2-studio, .ap2-editor, .ap2-quick-edit { width: 100vw; max-width: 100vw; height: 100dvh; max-height: 100dvh; margin: 0; border: 0; border-radius: 0; }
+    .ap2-dialog, .ap2-dialog.ap2-viewer, .ap2-dialog.ap2-studio, .ap2-dialog.ap2-manual, .ap2-editor, .ap2-quick-edit { width: 100vw; max-width: 100vw; height: 100dvh; max-height: 100dvh; margin: 0; border: 0; border-radius: 0; }
     .ap2-dialog.ap2-compact { top: auto; bottom: 0; width: 100vw; max-width: 100vw; height: auto; max-height: 85dvh; margin: 0; border-radius: 20px 20px 0 0; }
     .ap2-header { padding-inline-start: 16px; }
     .ap2-body { flex: 1 1 auto; padding-inline: 16px; }

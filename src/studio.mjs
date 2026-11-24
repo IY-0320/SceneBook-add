@@ -6,11 +6,12 @@ import { promptEditor } from './prompt-ui.mjs';
 import { workflowEnabled } from './automatic.mjs';
 import { applyFrame, frameChoices } from './frames-ui.mjs';
 import { LOOKS } from './framing.mjs';
+import { UC_PRESETS, mergeTags } from './tag-rules.mjs';
 import { INKS } from './ornaments.mjs';
 import { charactersPage } from './characters-ui.mjs';
 import { referencesPage } from './reference-ui.mjs';
 import { galleryPage } from './gallery-ui.mjs';
-import { el, button, iconButton, actionMenu, modal, field, addField, readFields, segmented, choiceChips, section, foldout, saveBar, confirmAction, downloadJson, notice, syncTone } from './ui.mjs';
+import { el, button, iconButton, actionMenu, modal, field, addField, readFields, segmented, choiceChips, section, foldout, saveBar, confirmAction, downloadJson, notice, syncTone, fitText } from './ui.mjs';
 
 const PAGES=[
     ['home','시작','fa-house'],['prompt','프롬프트','fa-pen-nib'],['image','그림 설정','fa-sliders'],['characters','인물','fa-user'],
@@ -35,7 +36,7 @@ function workflowControls(api){
     const refresh=()=>{
         const c=api.settings(),on=workflowEnabled(c),every=c.every===1?'답변마다':`답변 ${c.every}개마다`;
         toggle.input.checked=on;mode.set(c.automatic==='review'?'review':'generate');mode.wrap.hidden=!on;
-        help.textContent=!on?'꺼져 있습니다. 답변에 삽화 지시를 넣지 않고 자동으로 그리지도 않습니다. 필요할 때 직접 그릴 수 있습니다.'
+        help.textContent=!on?'꺼져 있습니다. 답변에 삽화 지시를 넣지 않고 자동으로 그리지도 않습니다. 필요할 때 수동 생성으로 그릴 수 있습니다.'
             :c.automatic==='review'?'AI가 답변과 함께 쓴 삽화 지시를 초안으로만 저장합니다. 확인한 뒤 직접 생성하세요.'
             :`AI가 답변과 함께 삽화 지시를 쓰고, ${every} 그림을 자동으로 만들어 답변 아래에 넣습니다.`;
         const text=api.status?.()||'';status.textContent=text;status.hidden=!text;
@@ -78,10 +79,11 @@ function homePage(page,{api,open,close,listen}){
     auto.append(flow.help,flow.mode.wrap,limits,limitState,flow.status);
     const actions=section(page,'바로 하기'),quick=el('div','ap2-quick');
     quick.append(
-        button('마지막 답변 그리기',async()=>{close();await api.compose();},true,'fa-wand-magic-sparkles'),
+        button('수동 생성',()=>{api.manual();close();},true,'fa-wand-magic-sparkles'),
+        button('장면 편집',async()=>{close();await api.compose();},false,'fa-pen'),
         button('이미지에서 설정 읽기',()=>imageImport(api,()=>open('prompt',true)),false,'fa-file-image'),
         button('사용법',showGuide,false,'fa-circle-question'));
-    actions.append(quick,el('p','ap2-muted','이미 나온 그림은 그림 위의 연필 버튼으로 고치고, 회전 화살표로 다시 그립니다. 각 답변의 메뉴(…)에 있는 풍경 아이콘으로 그 답변의 그림을 만들 수 있습니다.'));
+    actions.append(quick,el('p','ap2-muted','수동 생성은 마지막 답변의 그림을 지금 만듭니다. AI에게 장면을 쓰게 하거나 프롬프트를 직접 적을 수 있고, 자동 삽화가 꺼져 있어도 됩니다. 장면 편집은 인물 배치까지 자세히 다룹니다. 다른 답변은 그 답변의 메뉴(…)에 있는 마법봉·풍경 아이콘을 누르세요. 이미 나온 그림은 그림 위의 연필 버튼으로 고치고 회전 화살표로 다시 그립니다.'));
     const summary=section(page,'지금 설정'),list=el('div','ap2-summary');summary.append(list);
     function describe(){
         const s=api.settings(),look=LOOKS.find(([id])=>id===s.look)?.[1],visual=api.visualSettings(),applied=usableReferences(s.model,s.references??[]).length;
@@ -113,9 +115,13 @@ function promptPage(page,{api,open}){
     fields.look={read:()=>look};
     const main=section(page,'메인 프롬프트','화풍·작가·색감처럼 모든 그림에 넣을 태그를 영어로 적습니다.');
     addField(main,fields,'style','메인 프롬프트',c.style,{multiline:true,rows:6,placeholder:'예: anime coloring, soft lighting, detailed background'});
-    addField(main,fields,'quality','품질 태그 자동 추가',c.quality,{type:'checkbox',help:'프롬프트 끝에 모델별 품질 태그를 붙입니다. 메인 프롬프트에 직접 적었다면 끄세요.'});
+    addField(main,fields,'quality','품질 태그 자동 추가',c.quality,{type:'checkbox',help:`프롬프트 끝에 NovelAI 기본 품질 태그를 붙입니다. 지금 모델(${MODELS[c.model]?.label}): ${MODELS[c.model]?.quality}. 메인 프롬프트에 직접 적었다면 끄세요.`});
     const exclude=section(page,'제외할 요소 (UC)','그림에 나오지 않았으면 하는 것을 적습니다.');
     addField(exclude,fields,'negative','제외할 요소',c.negative,{multiline:true,rows:4});
+    // NovelAI's own presets, merged into what is already written.
+    const presets=el('div','ap2-actions');
+    for(const [label,tags]of UC_PRESETS)presets.append(button(`${label} 넣기`,()=>{fields.negative.input.value=mergeTags(tags,fields.negative.read());fitText(fields.negative.input);page.dispatchEvent(new Event('input'));},false,'fa-plus'));
+    exclude.append(presets,el('p','ap2-muted','NovelAI 사이트가 기본으로 넣는 UC입니다. 이미 적은 태그는 그대로 두고 빠진 것만 더합니다. 흑백 만화 그림체를 쓴다면 halftone, screentone은 지우세요.'));
     for(const key of ['style','negative'])fields[key].wrap.classList.add('ap2-field-bare');
     const order=section(page,'전송 순서'),strip=el('ol','ap2-order');
     for(const [i,part]of ['그림체','메인 프롬프트','구도','장면','품질 태그'].entries()){if(i){const arrow=el('li','ap2-order-arrow','→');arrow.setAttribute('aria-hidden','true');strip.append(arrow);}strip.append(el('li','',part));}
@@ -274,7 +280,7 @@ export function mountSettings(api,container){
     connection.append(connectionText,iconButton('연결 다시 확인','fa-rotate-right',check));
     const flow=workflowControls(api),card=el('section','ap2-workflow');card.append(flow.toggle.wrap,flow.help,flow.mode.wrap,flow.status);
     const actions=el('div','ap2-quick');
-    actions.append(button('씬북 열기',()=>{studio(api);},true,'fa-panorama'),button('마지막 답변 그리기',()=>api.compose(),false,'fa-wand-magic-sparkles'));
+    actions.append(button('씬북 열기',()=>{studio(api);},true,'fa-panorama'),button('수동 생성',()=>{api.manual();},false,'fa-wand-magic-sparkles'));
     content.append(connection,card,actions,el('p','ap2-muted','프롬프트·모델·인물·참조는 씬북 열기에서 넓은 화면으로 설정합니다. 채팅 입력창 왼쪽의 마법봉 메뉴에서도 열 수 있습니다.'));
     for(const name of ['scenebook-workflow-status','scenebook-settings-changed'])document.addEventListener(name,flow.refresh);
     flow.refresh();void check();

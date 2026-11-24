@@ -1,14 +1,15 @@
 // NovelAI protocol validation and request payloads.
+// `quality` is the tag set NovelAI's own page appends for that model.
 // What each model family accepts as an image reference. V5 takes Precise
 // Reference only: several pictures, an outfit type, strength up to 5 and no
 // fidelity control. `precise` is the number of Precise pictures per image.
 const REFERENCES_V5 = Object.freeze({ vibe: false, precise: 8, total: 8, outfit: true, fidelity: false, strengthMax: 5, bucket: true });
 const REFERENCES_V45 = Object.freeze({ vibe: true, precise: 1, total: 4, outfit: false, fidelity: true, strengthMax: 1, bucket: false });
 export const MODELS = Object.freeze({
-    'nai-diffusion-5-full': { label: 'V5 Full', family: 5, characters: 32, tokens: 1471, references: REFERENCES_V5 },
-    'nai-diffusion-5-curated': { label: 'V5 Curated', family: 5, characters: 32, tokens: 703, references: REFERENCES_V5 },
-    'nai-diffusion-4-5-full': { label: 'V4.5 Full', family: 4.5, characters: 6, tokens: 512, references: REFERENCES_V45 },
-    'nai-diffusion-4-5-curated': { label: 'V4.5 Curated', family: 4.5, characters: 6, tokens: 512, references: REFERENCES_V45 },
+    'nai-diffusion-5-full': { label: 'V5 Full', family: 5, characters: 32, tokens: 1471, references: REFERENCES_V5, quality: 'very aesthetic, masterpiece, no text' },
+    'nai-diffusion-5-curated': { label: 'V5 Curated', family: 5, characters: 32, tokens: 703, references: REFERENCES_V5, quality: 'very aesthetic, masterpiece, no text' },
+    'nai-diffusion-4-5-full': { label: 'V4.5 Full', family: 4.5, characters: 6, tokens: 512, references: REFERENCES_V45, quality: 'location, very aesthetic, masterpiece, no text' },
+    'nai-diffusion-4-5-curated': { label: 'V4.5 Curated', family: 4.5, characters: 6, tokens: 512, references: REFERENCES_V45, quality: 'location, masterpiece, no text, -0.8::feet::, rating:general' },
 });
 export const REFERENCE_MODES = ['character', 'style', 'character&style', 'outfit'];
 export const REFERENCE_LIMIT = 12;
@@ -123,7 +124,7 @@ export function buildPayload(sceneInput, configInput, seed) {
     const refused=referencePlan(c.model,c.references).find(x=>x.skip);
     if(refused)fail(refused.skip);
     if(c.references.some(r=>r.strength>(r.kind==='precise'?model.references.strengthMax:1)))fail(`${model.label}의 참조 강도는 Precise Reference 0~${model.references.strengthMax}, Vibe 0~1입니다.`);
-    const quality = c.quality ? (model.family === 5 ? 'very aesthetic, masterpiece, no text' : 'very aesthetic, best quality') : '';
+    const quality = c.quality ? model.quality : '';
     const prompt = s.finalPrompt ? s.prompt : [c.style, s.camera, s.prompt, quality, c.transparent ? 'transparent background, has alpha' : ''].filter(Boolean).join(', ');
     const negative = s.finalPrompt ? s.negative : [c.negative, s.negative].filter(Boolean).join(', ');
     const captions = negativeMode => s.characters.map(ch => ({

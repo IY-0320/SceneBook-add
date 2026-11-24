@@ -1,3 +1,4 @@
+import { sceneLabel, sceneHint } from './scene-label.mjs';
 import { el, button, iconButton, actionMenu, modal, inspect, viewer } from './ui.mjs';
 
 export async function galleryPage(page,{api,open,isCurrent}) {
@@ -30,9 +31,9 @@ export async function galleryPage(page,{api,open,isCurrent}) {
         count.textContent=`${matches.length}개 · ${filter.value==='chat'?'현재 채팅':`최근 서버 기록${recent.length>=100?' 100개':''} + 현재 채팅`}${failure?' · 서버 기록을 불러오지 못했습니다':''}`;count.title=failure;
         if(!matches.length)list.append(el('p','ap2-empty',query?'검색 결과가 없습니다.':'표시할 그림이 없습니다.'));
         for(const job of matches.slice(pageIndex*size,(pageIndex+1)*size)){
-            const title=job.scene?.title||'삽화',ready=job.status==='done'&&api.isImage(job.url);
+            const label=sceneLabel(job.scene),title=sceneHint(job.scene)||'삽화',ready=job.status==='done'&&api.isImage(job.url);
             const card=button('',()=>{
-                if(!ready){const {body}=modal(title);body.append(el('p','',job.error||'결과가 아직 확정되지 않았습니다.'),button('생성 기록',()=>inspect(job)));return;}
+                if(!ready){const {body}=modal(label||'삽화');body.append(el('p','',job.error||'결과가 아직 확정되지 않았습니다.'),button('생성 기록',()=>inspect(job)));return;}
                 const ensureScope=()=>{if(scope!==api.contextKey())throw new Error('채팅이 바뀌었습니다. 갤러리를 새로고침해 주세요.');};
                 viewer(job,{actions:[
                     {label:'삽입',icon:'fa-plus',close:true,run:()=>{ensureScope();return api.recover(job);}},
@@ -42,7 +43,8 @@ export async function galleryPage(page,{api,open,isCurrent}) {
             card.className='ap2-gallery-item';card.replaceChildren();card.title=title;card.setAttribute('aria-label',`${title} · ${ready?'이미지 보기':'작업 확인'}`);
             if(ready){const img=el('img');img.src=job.url;img.loading='lazy';img.decoding='async';img.alt='';card.append(img);}
             else card.append(el('span','ap2-gallery-failed',job.status==='failed'?'실패':job.status==='running'?'생성 중':'확인 필요'));
-            card.append(el('span','ap2-gallery-title',title));list.append(card);
+            // Only a title someone wrote is shown over the picture; the prompt is the tooltip.
+            if(label)card.append(el('span','ap2-gallery-title',label));list.append(card);
         }
         previous.disabled=pageIndex===0;next.disabled=pageIndex>=pages-1;pageNumber.textContent=`${pageIndex+1} / ${pages}`;pager.hidden=pages<2;
     }

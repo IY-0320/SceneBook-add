@@ -86,7 +86,7 @@ export function normalizeMetadata(fields,dimensions={}){
     if(p.noise_schedule!==undefined){if(!['karras','native','exponential','polyexponential'].includes(p.noise_schedule))warnings.push('지원하지 않는 스케줄러는 적용하지 않습니다.');else patch.scheduler=p.noise_schedule;}
     if(p.straight_alpha!==undefined){if(typeof p.straight_alpha!=='boolean')throw new Error('투명 배경 값이 올바르지 않습니다.');patch.transparent=p.straight_alpha;}
     // Character prompts, their negatives and coordinates are deliberately ignored.
-    const scene={title:typeof fields.Title==='string'?fields.Title.slice(0,150):'가져온 장면',prompt,camera:'',negative:negative?.base_caption??p.uc??p.negative_prompt??'',after:1,evidence:'',characters:[]};
+    const scene={title:'',prompt,camera:'',negative:negative?.base_caption??p.uc??p.negative_prompt??'',after:1,evidence:'',characters:[]};
     normalizeScene(scene,model??'nai-diffusion-5-full');
     const flags={sm:'SMEA',sm_dyn:'SMEA DYN',dynamic_thresholding:'동적 Guidance',legacy:'Legacy',legacy_v3_extend:'Legacy prompt',deliberate_euler_ancestral_bug:'구형 Euler 동작'};
     for(const [key,label]of Object.entries(flags))if(p[key])unsupported.push(label);

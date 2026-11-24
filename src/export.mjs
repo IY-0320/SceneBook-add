@@ -1,5 +1,6 @@
 import { safeImagePath,sourceKey } from '../plugin/core.mjs';
 import { narrativeBlocks } from './context.mjs';
+import { sceneLabel } from './scene-label.mjs';
 
 const escape=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 export function exportMessages(chat,placement='end'){
@@ -12,7 +13,8 @@ export function exportMessages(chat,placement='end'){
 export function exportHtml(messages,assets,title='삽화 채팅'){
     const figure=({job})=>{
         const image=assets.get(job.url);if(!/^data:image\/png;base64,[A-Za-z0-9+/=]+$/.test(image??''))throw new Error('내보낼 PNG를 확인할 수 없습니다.');
-        return `<figure><img src="${image}" alt="${escape(job.scene?.title)}"><figcaption>${escape(job.scene?.title)}</figcaption></figure>`;
+        const label=sceneLabel(job.scene);
+        return `<figure><img src="${image}" alt="${escape(label||'삽화')}">${label?`<figcaption>${escape(label)}</figcaption>`:''}</figure>`;
     };
     const content=messages.map(m=>{
         const blocks=narrativeBlocks(m.source),insertions=new Map(),tail=[];

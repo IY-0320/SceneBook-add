@@ -68,6 +68,11 @@ export function validateAnchor(scene, context, placement='end') {
     // Empty quote marks a reply-level attachment, independent of paragraphs.
     return { index: 0, quote: '', source: context.source };
 }
+const KIND = /^\s*1?(girl|boy|other)\s*(?:,\s*|$)/i;
+function leadingKind(value) {
+    const source = String(value ?? ''), match = source.match(KIND);
+    return match ? [match[1].toLowerCase(), source.slice(match[0].length)] : ['', source];
+}
 export function compileCharacter(character, library, playerMode = 'auto') {
     const entry = library.find(x => x.id === character.id) ?? library.find(x => x.name === character.name);
     if (entry?.player && playerMode === 'pov') return null;
@@ -75,6 +80,9 @@ export function compileCharacter(character, library, playerMode = 'auto') {
     if (character.profileId && !profile) throw new Error('존재하지 않는 외형 프로필입니다.');
     const identity = profile?.appearance ?? entry?.appearance ?? character.appearance ?? '';
     const outfit = character.outfit ?? profile?.outfit ?? entry?.outfit ?? '';
-    return { ...character, name: entry?.name ?? character.name, negative:[entry?.negative,character.negative].filter(Boolean).join(', '), prompt: [identity, outfit, character.action ?? character.prompt].filter(Boolean).join(', ') };
+    // NovelAI expects a character prompt to open with girl, boy or other, without
+    // a number. Whichever part states it, it is written once, at the front.
+    const [stated, look] = leadingKind(identity), [acted, action] = leadingKind(character.action ?? character.prompt);
+    return { ...character, name: entry?.name ?? character.name, negative:[entry?.negative,character.negative].filter(Boolean).join(', '), prompt: [stated || acted, look, outfit, action].filter(Boolean).join(', ') };
 }
 export const planInstruction = renderAnalysis;

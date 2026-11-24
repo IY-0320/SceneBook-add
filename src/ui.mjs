@@ -1,6 +1,7 @@
 import { MODELS, safeImagePath } from '../plugin/core.mjs';
 import { HELP } from './guide.mjs';
 import { notice,placeNotices } from './notifications.mjs';
+import { sceneLabel } from './scene-label.mjs';
 export { notice } from './notifications.mjs';
 export { composer } from './editor.mjs';
 
@@ -169,8 +170,8 @@ export function inspect(job) {
 export function viewer(job,{actions=[],more=[]}={}) {
     if(!safeImagePath(job.url))throw new Error('이미지 경로를 확인할 수 없습니다.');
     const meta=[MODELS[job.config?.model]?.label,job.config?.width&&`${job.config.width} × ${job.config.height}`,job.seed!==undefined&&`Seed ${job.seed}`].filter(Boolean).join(' · ');
-    const {dialog,body}=modal(job.scene?.title??'삽화',meta);dialog.classList.add('ap2-viewer');
-    const img=el('img','ap2-full');img.src=job.url;img.alt=job.scene?.title??'삽화';body.append(img);
+    const label=sceneLabel(job.scene)||'삽화',{dialog,body}=modal(label,meta);dialog.classList.add('ap2-viewer');
+    const img=el('img','ap2-full');img.src=job.url;img.alt=label;body.append(img);
     const footer=el('footer','ap2-footer ap2-viewer-footer');
     const run=item=>{if(item.close)dialog.close();return item.run();};
     for(const item of actions){const b=button(item.label,()=>run(item),false,item.icon??'');if(item.danger)b.classList.add('ap2-danger');footer.append(b);}
@@ -186,7 +187,7 @@ export function compareVersions(versions,currentIndex){
     const grid=el('div','ap2-compare');body.append(grid);
     for(const [label,start]of [['이전 결과',currentIndex===0?1:currentIndex-1],['현재 결과',currentIndex]]){
         const pane=el('section'),select=field(label,String(start),{choices}),image=el('img','ap2-compare-image'),info=el('p','ap2-muted');
-        const show=()=>{const job=versions[Number(select.read())];if(!safeImagePath(job.url)){image.removeAttribute('src');info.textContent='이미지 경로를 확인할 수 없습니다.';return;}image.src=job.url;image.alt=job.scene.title;info.textContent=`${MODELS[job.config.model]?.label??job.config.model} · ${job.config.width} × ${job.config.height} · ${job.config.steps} Steps`;};
+        const show=()=>{const job=versions[Number(select.read())];if(!safeImagePath(job.url)){image.removeAttribute('src');info.textContent='이미지 경로를 확인할 수 없습니다.';return;}image.src=job.url;image.alt=sceneLabel(job.scene)||'삽화';info.textContent=`${MODELS[job.config.model]?.label??job.config.model} · ${job.config.width} × ${job.config.height} · ${job.config.steps} Steps`;};
         select.input.addEventListener('change',show);show();pane.append(select.wrap,image,info);grid.append(pane);
     }
 }

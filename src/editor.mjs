@@ -18,7 +18,7 @@ export function composer({context,scenes,config,onAnalyze,onGenerate,onDraft,pre
     const scene=()=>drafts[selected];
     const moveScene=delta=>{const to=selected+delta;if(to<0||to>=drafts.length)return;snapshot();[drafts[selected],drafts[to]]=[drafts[to],drafts[selected]];selected=to;render();};
     const sceneBack=iconButton('장면 앞으로','fa-arrow-left',()=>moveScene(-1)),sceneNext=iconButton('장면 뒤로','fa-arrow-right',()=>moveScene(1));
-    const addScene=button('추가',()=>{if(drafts.length>=config.maxScenes)throw new Error(`최대 ${config.maxScenes}개 장면입니다.`);snapshot();drafts.push({title:`장면 ${drafts.length+1}`,prompt:'',camera:'',negative:'',after:context.blocks.at(-1).index,evidence:'',characters:[]});selected=drafts.length-1;person=0;render();},false,'fa-plus');
+    const addScene=button('추가',()=>{if(drafts.length>=config.maxScenes)throw new Error(`최대 ${config.maxScenes}개 장면입니다.`);snapshot();drafts.push({title:'',prompt:'',camera:'',negative:'',after:context.blocks.at(-1).index,evidence:'',characters:[]});selected=drafts.length-1;person=0;render();},false,'fa-plus');
     const deleteScene=iconButton('장면 삭제','fa-trash-can',async()=>{const target=scene();if(!target||!await confirmAction('장면 삭제',`장면 ${selected+1}을 삭제할까요? 되돌리기로 복구할 수 있습니다.`))return;snapshot();drafts.splice(selected,1);selected=Math.max(0,selected-1);person=0;render();});
     tools.append(sceneBack,sceneNext,addScene,deleteScene);
     sceneSelect.input.addEventListener('change',()=>{selected=Number(sceneSelect.read());person=0;render();});
