@@ -671,7 +671,7 @@ function initialize() {
             helpString:'씬북 수동 생성: 마지막 답변의 그림을 바로 만듭니다. 예: /scenegen · /scenegen rainy street at night · /scenegen mode=ai size=landscape 둘이 마주 보는 장면',
         }));
     }
-    initChatHelpers(scheduleRender); // [add] 터치 도구 아이콘 · 삽화 다시 붙이기
+    initChatHelpers(); // [add] 터치 도구 아이콘 · 씬북+ 스타일
     scheduleRender();
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',initialize,{once:true});else initialize();
