@@ -33,6 +33,8 @@ import { activeStyleIndex, restyle, applyStylePreset, writeActiveStyle, STYLE_NO
 import { deleteIllustrationImages, deletedJobIds } from './src/addon/gallery-delete.mjs';
 import { revealTools, initChatHelpers, showVersionNow } from './src/addon/chat-helpers.mjs';
 import { parseAnalysisResponse, analysisLength } from './src/addon/analysis-response.mjs';
+// [add] 업데이트 뒤 자동 새로고침 (manifest.json hooks.update)
+export { reloadAfterUpdate as onSceneBookUpdate } from './src/addon/update-reload.mjs';
 
 const KEY = 'autopic2';
 // SillyTavern: in-chat injection, depth 0, System role.
