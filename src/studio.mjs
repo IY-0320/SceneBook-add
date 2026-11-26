@@ -1,7 +1,7 @@
 import { MODELS, SAMPLERS, usableReferences } from '../plugin/core.mjs';
 import { CLIENT_VERSION, serverAtLeast } from './server-health.mjs';
 import { ADDON_NAME, ADDON_VERSION } from './addon/info.mjs'; // [add] 씬북+ 이름·버전
-import { ANALYSIS_LENGTHS, readAnalysisLength, writeAnalysisLength } from './addon/analysis-response.mjs'; // [add] 분석 답 길이
+import { analysisLengthField } from './addon/analysis-response.mjs'; // [add] 분석 답 길이
 import { showGuide } from './guide.mjs';
 import { imageImport } from './import-ui.mjs';
 import { promptEditor } from './prompt-ui.mjs';
@@ -189,11 +189,8 @@ function imagePage(page,{api,open}){
     addField(analysis,fields,'profileId','연결 프로필',c.profileId,{choices:[['','현재 채팅 연결'],...api.profiles().map(p=>[p.id,p.name])],help:'따로 고르지 않아도 현재 대화에 사용하는 AI로 분석합니다.'});
     addField(analysis,fields,'analysisMode','분석 방식',c.analysisMode,{choices:[['quick','빠르게'],['precise','정밀하게']],help:'정밀 분석은 복장·외형 시점 확인에 LLM을 한 번 더 호출합니다.'});
     addField(analysis,fields,'contextMessages','함께 읽을 이전 메시지',c.contextMessages,{type:'number',min:0,max:30,step:1});
-    // [add] 분석 답 길이. 씬북 설정과 따로 저장하므로 fields에 넣지 않고, 변경을 위로 전달하지 않습니다.
-    const length=field('분석 답 길이 (토큰)',readAnalysisLength(),{choices:ANALYSIS_LENGTHS,help:'AI가 장면을 쓸 때 답할 수 있는 최대 길이입니다. 생각(추론)하는 AI가 길이를 생각에 다 써서 빈 답이 오면 늘려 주세요. 최대치일 뿐이라 실제로 쓴 만큼만 비용이 듭니다. 모델이 지원하는 최대 출력보다 크면 오류가 날 수 있습니다.'});
-    for(const type of ['input','change'])length.input.addEventListener(type,event=>event.stopPropagation());
-    length.input.addEventListener('change',()=>{writeAnalysisLength(length.read());notice(`분석 답 길이 · ${ANALYSIS_LENGTHS.find(([id])=>id===length.read())?.[1]??'자동'}`);});
-    analysis.append(length.wrap);
+    // [add] 분석 답 길이: 자동 / 직접 입력 (씬북 설정과 따로 저장)
+    analysis.append(analysisLengthField({field,notice}));
     analysis.append(button('마지막 답변 분석',()=>api.analyze(),false,'fa-wand-magic-sparkles'));
     saveBar(page,()=>api.saveSettings({...api.settings(),...readFields(fields)}));
     const presets=foldout(page,'프리셋 · 백업',presetsOpen);
