@@ -1,3 +1,6 @@
+> **씬북+ (SceneBook-add)** · 원본 씬북에 기능을 더한 개조판입니다. 추가 기능 · 설치 · 라이선스는 [ADD.md](ADD.md)를 보세요.
+> 원본 씬북과 **동시에 켜지 마세요.** 원본: https://github.com/tincansimagine/ST-SceneBook
+
 # 씬북 (SceneBook)
 
 SillyTavern 채팅에 NovelAI 삽화를 생성하고 삽입하는 확장입니다.
