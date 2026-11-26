@@ -1,3 +1,4 @@
+import { host } from './host.mjs';
 // 씬북+ · 채팅 화면 편의 기능
 // 0) 씬북+ 전용 스타일(적용 중 배지, 확대 버튼 등)을 넣습니다.
 // 1) 터치 화면에서는 삽화 위 도구 아이콘(수정·재생성)을 숨겨 두고, 그림을 한 번 누르면 잠시 보여 줍니다.
@@ -30,4 +31,24 @@ export function initChatHelpers(){
         document.head.append(css);
     }
     document.addEventListener('click',event=>{document.querySelectorAll('.ap2-figure[data-tools=open]').forEach(f=>{if(!f.contains(event.target))delete f.dataset.tools;});},true);
+}
+
+// 삽화 버전(‹ 2/4 ›)을 바꿀 때: 원본은 채팅 전체를 서버에 저장한 뒤에야 그림을 바꿔, 긴 채팅·휴대폰에서 늦게 넘어갔습니다.
+// 그림은 바로 바꾸고 저장은 뒤에서(모아서) 합니다.
+// 실리의 지연 저장(saveChatDebounced)은 앞 저장이 1초 넘게 걸리면 포기해 마지막 선택을 잃을 수 있어,
+// 넘기기가 멈추면 저장하고, 저장 중에 또 바뀌면 끝난 뒤 한 번 더 저장합니다.
+let saveTimer=0,saving=false,again=false,pendingChat=null;
+async function flushSave(){
+    const c=SillyTavern.getContext();
+    if(pendingChat!==c.getCurrentChatId?.())return;// 그사이 다른 채팅으로 옮겼으면 저장하지 않습니다.
+    if(saving){again=true;return;}
+    saving=true;
+    try{await c.saveChat();}catch(e){console.error('씬북+ 삽화 버전 저장 실패',e);}
+    finally{saving=false;if(again){again=false;void flushSave();}}
+}
+export function showVersionNow(message){
+    const swipe=message.swipe_info?.[message.swipe_id??0];if(swipe)swipe.extra=structuredClone(message.extra);
+    host.scheduleRender();
+    pendingChat=SillyTavern.getContext().getCurrentChatId?.();
+    clearTimeout(saveTimer);saveTimer=setTimeout(()=>void flushSave(),600);
 }

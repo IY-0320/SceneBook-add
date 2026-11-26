@@ -31,7 +31,7 @@ import { connect as connectAddon } from './src/addon/host.mjs';
 import { injectionPrompt, placementKey, isParagraphPlacement, anchorByOrder } from './src/addon/auto-placement.mjs';
 import { activeStyleIndex, restyle, applyStylePreset, writeActiveStyle, STYLE_NONE } from './src/addon/style-presets.mjs';
 import { deleteIllustrationImages, deletedJobIds } from './src/addon/gallery-delete.mjs';
-import { revealTools, initChatHelpers } from './src/addon/chat-helpers.mjs';
+import { revealTools, initChatHelpers, showVersionNow } from './src/addon/chat-helpers.mjs';
 import { parseAnalysisResponse, analysisLength } from './src/addon/analysis-response.mjs';
 
 const KEY = 'autopic2';
@@ -363,7 +363,8 @@ function openIllustration(index,slot) {
     const target=capture(index),job=slot.versions[slot.selected];
     if(!viewState(target,false)?.slots.includes(slot)||slot.deleted)throw new Error('대상 답변이 바뀌었습니다. 이미지를 다시 열어 주세요.');
     const ensureCurrent=()=>{if(!current(target)||slot.deleted)throw new Error('대상 답변이 바뀌었습니다. 이미지를 다시 열어 주세요.');return context().chat.indexOf(target.message);};
-    const dialog=viewer(job,{
+    // [add] 옆으로 밀면 같은 장면을 다시 그린 그림(버전)으로 넘어가고, 채팅에도 그 버전이 보입니다.
+    const build=job=>({
         actions:[{label:'수정',icon:'fa-pen',close:true,run:()=>{ensureCurrent();return openQuickEdit(index,slot);}},{label:'재생성',icon:'fa-rotate-right',close:true,run:()=>{ensureCurrent();return enqueue(target,[job.scene],slot.id,{...restyle(job.config),seed:-1});}}],
         more:[
             {label:'AI 검수',icon:'fa-magnifying-glass',run:()=>reviewImage(job)},
@@ -374,6 +375,8 @@ function openIllustration(index,slot) {
             {label:'삭제',icon:'fa-trash-can',danger:true,run:async()=>{if(await deleteIllustration(target,slot))dialog.close();}},
         ],
     });
+    const pick=version=>{const i=slot.versions.indexOf(version);if(i<0||i===slot.selected||slot.deleted||!current(target))return;slot.selected=i;showVersionNow(target.message);};
+    const dialog=viewer(job,{...build(job),sequence:slot.versions.length>1?{jobs:slot.versions,build:version=>{pick(version);return build(version);}}:null});
 }
 function openQuickEdit(index,slot) {
     const target=capture(index),job=slot.versions[slot.selected];
@@ -428,7 +431,7 @@ function renderMessage(index) {
         ]){const b=button('',action,false,icon);b.title=label==='재생성'?'같은 프롬프트, 새 시드로 다시 그리기':'프롬프트를 고쳐서 다시 그리기';b.setAttribute('aria-label',label);overlay.append(b);}
         imageWrap.append(open,overlay);figure.append(imageWrap);applyFrame(figure,imageWrap,open,job.config.width,job.config.height,config);
         if(slot.versions.length>1){
-            const change=async delta=>{const target=targetForImage();slot.selected=(slot.selected+delta+slot.versions.length)%slot.versions.length;await saveMessage(target);};
+            const change=delta=>{const target=targetForImage();slot.selected=(slot.selected+delta+slot.versions.length)%slot.versions.length;showVersionNow(target.message);};/* [add] 바로 넘기기 */
             const navigation=el('div','ap2-image-navigation');navigation.setAttribute('role','group');navigation.setAttribute('aria-label','삽화 버전 전환');
             const back=button('',()=>change(-1),false,'fa-chevron-left'),next=button('',()=>change(1),false,'fa-chevron-right');
             for(const [b,label]of [[back,'이전 그림'],[next,'다음 그림']]){b.classList.remove('menu_button','menu_button_icon');b.setAttribute('aria-label',label);b.title=label;}
