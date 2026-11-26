@@ -23,7 +23,18 @@ export function parseAnalysisResponse(raw,parse){
     try{return parse(raw);}catch(original){
         for(const source of candidates(raw)){try{return parse(source);}catch{}}
         const preview=raw.replace(THINK,'').replace(/\s+/g,' ').trim().slice(0,160);
-        const error=new Error(preview?`AI 응답 앞부분: ${preview}${raw.length>160?'…':''}`:'AI 응답이 비어 있습니다. 응답 길이 제한이나 차단(필터)을 확인하세요.',{cause:original});
+        const error=new Error(preview?`AI 응답 앞부분: ${preview}${raw.length>160?'…':''}`:'AI 응답이 비어 있습니다. 생각하는 AI가 답할 길이를 생각에 다 썼거나, 차단(필터)됐을 수 있습니다. 대화 AI 프리셋의 생각(추론) 수준을 낮춰 보세요.',{cause:original});
         throw error;
     }
+}
+
+// 생각(추론)하는 AI는 응답 길이 한도를 생각에 다 써 버리고 빈 답을 보내기도 합니다.
+// (예: gemini 추론 모델 · finish_reason: length · content: '')
+// 빈 답이 오면 한도를 넉넉히 늘려 한 번 더 요청합니다. 한도는 상한일 뿐, 실제 쓴 만큼만 과금됩니다.
+export const RETRY_LENGTH=16000;
+export async function requestWithRoom(send,length,onRetry=()=>{}){
+    const first=await send(length);
+    if(String(first?.content??'').trim()||length>=RETRY_LENGTH)return first;
+    onRetry();
+    return send(RETRY_LENGTH);
 }

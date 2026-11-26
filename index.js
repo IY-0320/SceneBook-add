@@ -32,7 +32,7 @@ import { injectionPrompt, placementKey, isParagraphPlacement, anchorByOrder } fr
 import { activeStyleIndex, restyle, applyStylePreset, writeActiveStyle, STYLE_NONE } from './src/addon/style-presets.mjs';
 import { deleteIllustrationImages, deletedJobIds } from './src/addon/gallery-delete.mjs';
 import { revealTools, initChatHelpers } from './src/addon/chat-helpers.mjs';
-import { parseAnalysisResponse } from './src/addon/analysis-response.mjs';
+import { parseAnalysisResponse, requestWithRoom } from './src/addon/analysis-response.mjs';
 
 const KEY = 'autopic2';
 // SillyTavern: in-chat injection, depth 0, System role.
@@ -171,7 +171,7 @@ async function analyze(target,existing=[],direction='',revisionScope='all',persi
             let parsed;try{parsed=JSON.parse(String(extracted?.content??'').trim().replace(/^```(?:json)?\s*/i,'').replace(/\s*```$/,''));}catch{throw new Error('상태 추적 JSON을 해석할 수 없습니다. 빠른 모드로 조용히 바꾸지 않았습니다.');}
             timeline=validateTimeline(parsed,target.snapshot);
         }
-        const response=await analysisRequest(target.config,planInstruction(target.snapshot,target.config,existing.length?existing:null,direction),Math.min(6000,1800*target.config.maxScenes));
+        const response=await requestWithRoom(length=>analysisRequest(target.config,planInstruction(target.snapshot,target.config,existing.length?existing:null,direction),length),Math.min(6000,1800*target.config.maxScenes),()=>notice('AI가 생각하느라 답을 다 쓰지 못했습니다. 답할 길이를 늘려 한 번 더 요청합니다.')); /* [add] 빈 답이면 길이를 늘려 재요청 */
         let value;try{value=parseAnalysisResponse(response?.content,parsePlanJson).value;}catch(e){throw new Error(`분석 응답을 형식 복구 후에도 읽지 못했습니다. 기존 초안은 유지됩니다. · ${e.message}`);} /* [add] 응답 읽기 보강 */
         if(!Array.isArray(value.scenes)||value.scenes.length>target.config.maxScenes)throw new Error('분석 결과의 장면 수가 설정과 맞지 않습니다.');
         if(existing.length&&value.scenes.length!==existing.length)throw new Error('수정 중 장면 수가 바뀌었습니다. 기존 초안을 유지합니다.');
