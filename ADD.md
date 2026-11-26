@@ -38,6 +38,6 @@
 ### 추가한 부분
 
 - `src/addon/` 폴더 전체
-- 원본 파일 안에서 `[add]` 표시가 붙은 줄과 그 줄이 가리키는 블록 (`index.js`, `src/context.mjs`, `src/prompts.mjs`, `src/editor.mjs`, `src/studio.mjs`, `src/ui.mjs`, `src/gallery-ui.mjs`, `src/guide.mjs`)
+- 원본 파일 안에서 `[add]` 표시가 붙은 줄과 그 줄이 가리키는 블록 (`index.js`, `src/context.mjs`, `src/prompts.mjs`, `src/editor.mjs`, `src/studio.mjs`, `src/ui.mjs`, `src/gallery-ui.mjs`, `src/guide.mjs`, `src/notifications.mjs`)
 - `manifest.json`의 이름·버전·작성자 표기, `README.md` 맨 위 안내 두 줄
 - `ADD.md`, `UPDATING.md`, `LICENSE`

@@ -10,7 +10,12 @@ const STYLE_KEYS=['model','steps','scale','sampler','scheduler','cfgRescale','st
 const sameValue=(a,b)=>JSON.stringify(a??null)===JSON.stringify(b??null);
 const readActiveStyle=()=>{try{return localStorage.getItem(STYLE_STORE)||'';}catch{return '';}};
 export const writeActiveStyle=name=>{try{if(name)localStorage.setItem(STYLE_STORE,name);else localStorage.removeItem(STYLE_STORE);}catch{}};
-export const matchesStyle=(preset,now)=>['style','negative','look','model'].every(k=>sameValue(preset?.config?.[k],now?.[k]));
+// look(원본의 '그림체' 선택)이 없는 프리셋은 적용해도 look이 바뀌지 않으므로 비교하지 않습니다.
+export const matchesStyle=(preset,now)=>{
+    const config=preset?.config;if(!config)return false;
+    if(!['style','negative','model'].every(k=>sameValue(config[k],now?.[k])))return false;
+    return typeof config.look!=='string'||(config.look||'')===(now?.look||'');
+};
 
 // 지금 적용 중인 프리셋 번호 (없으면 -1)
 export function activeStyleIndex(){

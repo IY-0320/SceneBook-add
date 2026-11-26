@@ -1,5 +1,6 @@
 import { MODELS, SAMPLERS, usableReferences } from '../plugin/core.mjs';
 import { CLIENT_VERSION, serverAtLeast } from './server-health.mjs';
+import { ADDON_NAME, ADDON_VERSION } from './addon/info.mjs'; // [add] 씬북+ 이름·버전
 import { showGuide } from './guide.mjs';
 import { imageImport } from './import-ui.mjs';
 import { promptEditor } from './prompt-ui.mjs';
@@ -253,8 +254,8 @@ export function studio(api,{page:first='home',host=null}={}){
         tools.append(iconButton('넓은 창으로 열기','fa-expand',()=>{studio(api,{page:activeId});}),iconButton('사용법','fa-circle-question',showGuide));
         bar.append(nav,tools);host.append(bar,pages);
     }else{
-        const frame=modal('씬북');dialog=frame.dialog;dialog.classList.add('ap2-studio');
-        dialog.querySelector('.ap2-header-title h2').append(el('small','ap2-version',CLIENT_VERSION));
+        const frame=modal(ADDON_NAME);dialog=frame.dialog;dialog.classList.add('ap2-studio');
+        dialog.querySelector('.ap2-header-title h2').append(el('small','ap2-version',ADDON_VERSION));
         const headerClose=dialog.querySelector('.ap2-header .ap2-close'),headerActions=el('div','ap2-actions ap2-header-actions');
         headerClose.replaceWith(headerActions);headerActions.append(button('사용법',showGuide,false,'fa-circle-question'),headerClose);
         frame.body.append(nav,pages);
@@ -355,7 +356,7 @@ export function studio(api,{page:first='home',host=null}={}){
 export function mountSettings(api,container){
     const drawer=el('div','inline-drawer');drawer.id='ap2-settings';
     const header=el('div','inline-drawer-toggle inline-drawer-header');header.tabIndex=0;header.setAttribute('role','button');header.setAttribute('aria-expanded','false');header.setAttribute('aria-controls','ap2-settings-content');
-    const label=el('b','ap2-drawer-title','씬북'),version=el('small','ap2-version',CLIENT_VERSION),status=el('small','ap2-muted','');status.id='ap2-status';label.append(version);
+    const label=el('b','ap2-drawer-title',ADDON_NAME),version=el('small','ap2-version',ADDON_VERSION),status=el('small','ap2-muted','');status.id='ap2-status';label.append(version);
     const icon=el('div','inline-drawer-icon fa-solid fa-circle-chevron-down down');icon.setAttribute('aria-hidden','true');header.append(label,status,icon);
     const content=el('div','inline-drawer-content ap2-settings');content.id='ap2-settings-content';content.style.display='none';
     drawer.append(header,content);container.append(drawer);

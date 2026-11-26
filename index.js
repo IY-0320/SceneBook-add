@@ -607,7 +607,7 @@ function initialize() {
     const wand=document.getElementById('extensionsMenu');
     if(wand&&!document.getElementById('ap2-wand')){
         const holder=el('div','extension_container');holder.id='ap2-wand';
-        for(const [icon,label,action]of [['fa-panorama','씬북',()=>{studio(api);}],['fa-wand-magic-sparkles','씬북 · 수동 생성',()=>openManual()]]){
+        for(const [icon,label,action]of [['fa-panorama','씬북+',()=>{studio(api);}],['fa-wand-magic-sparkles','씬북+ · 수동 생성',()=>openManual()]]){
             const item=el('div','list-group-item flex-container flexGap5 interactable');item.tabIndex=0;item.setAttribute('role','button');
             item.append(el('div',`fa-solid ${icon} extensionsMenuExtensionButton`),el('span','',label));
             const show=()=>{try{action();}catch(e){notice(e.message,true);}};

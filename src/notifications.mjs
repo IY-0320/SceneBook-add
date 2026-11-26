@@ -18,7 +18,7 @@ export function notify(message, { kind = 'info', persistent = false } = {}) {
     const toast = globalThis.toastr;
     if (toast?.[kind]) {
         placeNotices();
-        const node = toast[kind](String(message), '씬북', {
+        const node = toast[kind](String(message), '씬북+', { // [add] 이름
             escapeHtml: true, closeButton: true, progressBar: false,
             timeOut: persistent ? 0 : kind === 'error' ? 15000 : 5000,
             extendedTimeOut: persistent ? 0 : 1500, preventDuplicates: false,
