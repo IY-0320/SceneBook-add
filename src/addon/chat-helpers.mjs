@@ -18,7 +18,11 @@ export function initChatHelpers(){
         // 씬북+ 전용 스타일은 원본 style.css를 건드리지 않도록 여기서 넣습니다.
         css.textContent=[
             '@media (hover: none){.ap2-figure .ap2-image-actions{opacity:0!important;pointer-events:none}.ap2-figure[data-tools=open] .ap2-image-actions{opacity:1!important;pointer-events:auto}}',
+            // 삽화 위 연필·재생성 아이콘: 테마가 아이콘을 회색으로 칠해도 흰색으로 보이게 합니다.
+            '.ap2-figure .ap2-image-actions .ap2-button,.ap2-figure .ap2-image-actions .ap2-button i{color:#fff!important}',
+            '.ap2-figure .ap2-image-actions .ap2-button i{filter:drop-shadow(0 0 1px #000) drop-shadow(0 0 2px #0009)}',
             '.ap2-zoom-tools{position:absolute;right:10px;bottom:10px;z-index:2;display:flex;gap:6px}',
+            '.ap2-dialog.ap2-viewer .ap2-zoom-tools .ap2-button i{color:#fff!important}',
             '.ap2-dialog.ap2-viewer .ap2-zoom-tools .ap2-button{width:38px;min-height:38px;padding:0;border-radius:50%;background:#000000a6;color:#fff;backdrop-filter:blur(8px)}',
             '.ap2-dialog.ap2-viewer .ap2-zoom-tools .ap2-button:hover{background:#000000d9}',
             '.ap2-active-badge{flex:none;display:inline-flex;align-items:center;min-height:22px;padding:0 9px;border-radius:999px;background:var(--ap2-fg);color:var(--ap2-on);font-size:.74em;font-weight:600;white-space:nowrap}',

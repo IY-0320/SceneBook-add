@@ -48,10 +48,15 @@ export async function galleryPage(page,{api,open,isCurrent,forced}) {
         notice(full?`${result.deleted}개의 이미지 파일을 삭제했습니다.${result.failed?` ${result.failed}개는 파일을 지우지 못했습니다.`:''}`:`${result.hidden}개를 갤러리에서 숨겼습니다.`,!!result.failed);
         deleteStage='';deleteMode='';picked.clear();if(full)serverJobs=null;return refresh();
     };
+    // 선택 표시: 테마가 방금 누른 칸의 outline을 지우는 경우가 있어, 테두리를 따로 덧그립니다.
     const mark=(card,job)=>{
-        const on=(deleteStage==='pick'||deleteStage==='confirm')&&picked.has(job.id);card.style.outline=on?'3px solid var(--ap2-fg)':'';card.style.outlineOffset=on?'-3px':'';
-        card.querySelector('.ap2-pick-mark')?.remove();
-        if(on){if(getComputedStyle(card).position==='static')card.style.position='relative';const m=el('b','ap2-pick-mark','✓');m.style.cssText='position:absolute;top:6px;right:6px;width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--ap2-fg);color:var(--ap2-on);font-size:.85em';card.append(m);}
+        const on=(deleteStage==='pick'||deleteStage==='confirm')&&picked.has(job.id);
+        card.querySelectorAll('.ap2-pick-mark,.ap2-pick-frame').forEach(n=>n.remove());
+        if(!on)return;
+        if(getComputedStyle(card).position==='static')card.style.position='relative';
+        const frame=el('span','ap2-pick-frame');frame.style.cssText='position:absolute;inset:0;z-index:2;border:3px solid var(--ap2-fg);border-radius:inherit;box-shadow:inset 0 0 0 2px var(--ap2-on);pointer-events:none';
+        const m=el('b','ap2-pick-mark','✓');m.style.cssText='position:absolute;top:6px;right:6px;z-index:3;width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--ap2-fg);color:var(--ap2-on);font-size:.85em;pointer-events:none';
+        card.append(frame,m);
     };
     const scope=api.contextKey(),chatJobs=api.chatImages(),chatIds=new Set(chatJobs.map(j=>j.id));let recent=[],failure='';
     if(forced||!serverJobs||Date.now()-serverJobs.time>120000){try{serverJobs={time:Date.now(),jobs:await api.jobs()};}catch(e){failure=e.message;}}
