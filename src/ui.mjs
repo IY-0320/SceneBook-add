@@ -4,6 +4,7 @@ import { notice,placeNotices } from './notifications.mjs';
 import { sceneLabel } from './scene-label.mjs';
 import { enableSequence } from './addon/viewer-swipe.mjs'; // [add]
 import { enableZoom } from './addon/zoom.mjs'; // [add]
+import { styleName } from './addon/style-presets.mjs'; // [add] 제목에 그림체 프리셋
 export { notice } from './notifications.mjs';
 export { composer } from './editor.mjs';
 
@@ -209,7 +210,9 @@ export function viewer(job,{actions=[],more=[],sequence=null}={}) {
     // [add] sequence가 있으면 "n / 전체"를 함께 보여 주고 좌우로 넘길 수 있습니다.
     const info=(target,index=-1)=>[MODELS[target.config?.model]?.label,target.config?.width&&`${target.config.width} × ${target.config.height}`,target.seed!==undefined&&`Seed ${target.seed}`,sequence&&index>=0&&`${index+1} / ${sequence.jobs.length}`].filter(Boolean).join(' · ');
     const start=sequence?Math.max(0,sequence.jobs.findIndex(x=>x.id===job.id)):-1;
-    const label=sceneLabel(job.scene)||'삽화',{dialog,body}=modal(label,info(job,start));dialog.classList.add('ap2-viewer');
+    // [add] 제목: 삽화 · 그림체 프리셋 이름
+    const heading=target=>[sceneLabel(target.scene)||'삽화',styleName(target.config)].filter(Boolean).join(' · ');
+    const label=sceneLabel(job.scene)||'삽화',{dialog,body}=modal(heading(job),info(job,start));dialog.classList.add('ap2-viewer');
     const img=el('img','ap2-full');img.src=job.url;img.alt=label;body.append(img);
     const zoom=enableZoom(body,img,iconButton); // [add] 확대
     const footer=el('footer','ap2-footer ap2-viewer-footer');
@@ -225,7 +228,7 @@ export function viewer(job,{actions=[],more=[],sequence=null}={}) {
     if(sequence)enableSequence(dialog,{job,sequence,usable:safeImagePath,canSwipe:()=>!zoom.isZoomed(),show:(target,index,step)=>{
         zoom.reset();
         const title=sceneLabel(target.scene)||'삽화';
-        dialog.querySelector('.ap2-header-title h2').textContent=title;
+        dialog.querySelector('.ap2-header-title h2').textContent=heading(target);
         const sub=dialog.querySelector('.ap2-header-title p');if(sub)sub.textContent=info(target,index);
         img.src=target.url;img.alt=title;
         img.animate?.([{opacity:0,transform:`translateX(${step*48}px)`},{opacity:1,transform:'none'}],{duration:220,easing:'ease-out'});

@@ -7,7 +7,7 @@ import { paragraphPosition } from './paragraph-ui.mjs';
 import { ORIENTATIONS, LOOKS, withLook } from './framing.mjs';
 import { cameraChips } from './quick-edit.mjs';
 import { el, button, field, addField, readFields, modal, notice, confirmAction, downloadJson, actionMenu, segmented } from './ui.mjs';
-import { presetPicker } from './addon/style-presets.mjs'; // [add]
+import { presetInfo } from './addon/style-presets.mjs'; // [add]
 
 export function composer({context,scenes,config,onAnalyze,onGenerate,onDraft,previewUrl,presets=[]}){
     const {dialog,body}=modal('장면 편집');dialog.classList.add('ap2-editor');
@@ -101,8 +101,8 @@ export function composer({context,scenes,config,onAnalyze,onGenerate,onDraft,pre
         showPerson();placement.select(person);
     }
     function renderFinal(){
-        // [add] 프리셋 · 백업에 저장한 프리셋(그림체)을 바로 고릅니다.
-        content.append(presetPicker({presets,config,drafts:()=>drafts,exact:!!scene().finalPrompt,field,notice,MODELS,before:snapshot,after:render}));
+        // [add] 이 작업에 쓰인 그림체 프리셋 (확인용, 바꾸는 곳은 그림 고치기 창)
+        content.append(presetInfo({presets,config}));
         content.append(el('p','ap2-note','그림체·메인 프롬프트·구도·장면·품질 태그를 합친, 실제로 보낼 프롬프트입니다. 확인만 해도 됩니다. 여기서 직접 고치면 이 장면은 입력한 내용만 그대로 전송합니다.'));
         let payload;try{payload=buildPayload(scene(),{...withLook(config,config.look??''),references:usableReferences(config.model,config.references??[])},config.seed===-1?0:config.seed);}catch(e){content.append(el('p','ap2-muted',e.message));return;}
         const prompt=field('최종 장면 프롬프트',payload.input,{multiline:true,rows:7}),negative=field('최종 제외 요소',payload.parameters.negative_prompt,{multiline:true,rows:4});content.append(prompt.wrap,negative.wrap);

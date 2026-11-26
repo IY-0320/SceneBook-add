@@ -382,7 +382,7 @@ function openQuickEdit(index,slot) {
     // The picture's own prompts, with its look taken back out so it is shown and applied once.
     // [add] restyle: 적용 중인 프리셋 그림체가 있으면 그 그림체로 고치고 다시 그립니다.
     const styled=restyle(job.config);
-    quickEdit({scene:job.scene,config:editableConfig(styled),seed:job.seed,imageUrl:job.url,
+    quickEdit({scene:job.scene,config:editableConfig(styled),seed:job.seed,presets:settings().presets??[],imageUrl:job.url,
         onRewrite:async(scene,request)=>{check();return(await analyze(target,[{...scene,after:Math.min(scene.after,target.snapshot.blocks.length)}],request,'all',false))[0];},
         onGenerate:(scene,{size,keepSeed,saveDefault,...edits})=>{
             check();
