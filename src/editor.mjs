@@ -7,8 +7,9 @@ import { paragraphPosition } from './paragraph-ui.mjs';
 import { ORIENTATIONS, LOOKS, withLook } from './framing.mjs';
 import { cameraChips } from './quick-edit.mjs';
 import { el, button, field, addField, readFields, modal, notice, confirmAction, downloadJson, actionMenu, segmented } from './ui.mjs';
+import { presetPicker } from './addon/style-presets.mjs'; // [add]
 
-export function composer({context,scenes,config,onAnalyze,onGenerate,onDraft,previewUrl}){
+export function composer({context,scenes,config,onAnalyze,onGenerate,onDraft,previewUrl,presets=[]}){
     const {dialog,body}=modal('장면 편집');dialog.classList.add('ap2-editor');
     let drafts=structuredClone(scenes),selected=0,person=0,tab='scene',dirty=false,editing=false;
     const undo=[];const snapshot=()=>{undo.push({drafts:structuredClone(drafts),config:structuredClone(config),selected,person});if(undo.length>20)undo.shift();dirty=true;};
@@ -54,7 +55,8 @@ export function composer({context,scenes,config,onAnalyze,onGenerate,onDraft,pre
     }
     function bind(parent,key,label,options={}){const f=field(label,scene()[key],options);parent.append(f.wrap);f.input.addEventListener('input',()=>{scene()[key]=f.read();});return f;}
     function renderScene(){
-        if(config.placement==='inline')content.append(paragraphPosition(context.blocks,Number(scene().after),index=>{snapshot();scene().after=index;scene().evidence=context.blocks.find(block=>block.index===index)?.content.slice(0,2000)??'';undoButton.disabled=false;}));
+        // [add] 문단 뒤(자동)일 때도 문단을 직접 고를 수 있습니다.
+        if(config.placement!=='end')content.append(paragraphPosition(context.blocks,Number(scene().after),index=>{snapshot();scene().after=index;scene().evidence=context.blocks.find(block=>block.index===index)?.content.slice(0,2000)??'';undoButton.disabled=false;}));
         // Scene on one side, the job's shared prompts on the other; stacked on a narrow screen.
         const columns=el('div','ap2-edit-columns'),sceneSide=el('div',''),commonSide=el('div','');columns.append(sceneSide,commonSide);content.append(columns);
         const part=(side,title,help='')=>{const box=el('section','ap2-edit-block'),head=el('header','');head.append(el('h3','',title));if(help)head.append(el('p','ap2-muted',help));box.append(head);side.append(box);return box;};
@@ -99,6 +101,8 @@ export function composer({context,scenes,config,onAnalyze,onGenerate,onDraft,pre
         showPerson();placement.select(person);
     }
     function renderFinal(){
+        // [add] 프리셋 · 백업에 저장한 프리셋(그림체)을 바로 고릅니다.
+        content.append(presetPicker({presets,config,drafts:()=>drafts,exact:!!scene().finalPrompt,field,notice,MODELS,before:snapshot,after:render}));
         content.append(el('p','ap2-note','그림체·메인 프롬프트·구도·장면·품질 태그를 합친, 실제로 보낼 프롬프트입니다. 확인만 해도 됩니다. 여기서 직접 고치면 이 장면은 입력한 내용만 그대로 전송합니다.'));
         let payload;try{payload=buildPayload(scene(),{...withLook(config,config.look??''),references:usableReferences(config.model,config.references??[])},config.seed===-1?0:config.seed);}catch(e){content.append(el('p','ap2-muted',e.message));return;}
         const prompt=field('최종 장면 프롬프트',payload.input,{multiline:true,rows:7}),negative=field('최종 제외 요소',payload.parameters.negative_prompt,{multiline:true,rows:4});content.append(prompt.wrap,negative.wrap);

@@ -1,4 +1,5 @@
 import { renderAnalysis } from './prompts.mjs';
+import { autoPosition, isParagraphPlacement } from './addon/auto-placement.mjs'; // [add]
 // Story data is kept separate from render settings and from generated observations.
 export function normalized(value) { return String(value ?? '').normalize('NFC').replace(/\s+/g, ' ').trim(); }
 export function narrativeBlocks(source) {
@@ -56,6 +57,7 @@ export function illustrationBlocks(source) {
 export function scenePosition(scene, context, placement='end') {
     if(!scene||typeof scene!=='object'||Array.isArray(scene))return scene;
     const blocks=context.blocks??[],tail=blocks.at(-1)?.index??1;
+    if(placement==='auto')return autoPosition(scene,blocks,tail); // [add] 문단 뒤(자동)
     if(placement!=='inline')return{...scene,after:tail,evidence:''};
     const quote=typeof scene.evidence==='string'&&scene.evidence.length<=2000?normalized(scene.evidence):'';
     const matches=quote?blocks.filter(b=>normalized(b.content).includes(quote)):[];
@@ -63,7 +65,7 @@ export function scenePosition(scene, context, placement='end') {
     return{...scene,after:block?.index??tail,evidence:block?(quote||block.content.slice(0,2000)):''};
 }
 export function validateAnchor(scene, context, placement='end') {
-    const block = placement==='inline'&&context.blocks.find(b => b.index === scene.after);
+    const block = isParagraphPlacement(placement)&&context.blocks.find(b => b.index === scene.after);
     if(block&&scene.evidence&&normalized(block.content).includes(normalized(scene.evidence)))return{index:block.index,quote:block.content,source:context.source};
     // Empty quote marks a reply-level attachment, independent of paragraphs.
     return { index: 0, quote: '', source: context.source };

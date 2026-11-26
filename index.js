@@ -3,7 +3,7 @@ import { ConnectionManagerRequestService } from '../../shared.js';
 import { requestAnalysis,analysisError } from './src/connection.mjs';
 import { notify,progressNotice } from './src/notifications.mjs';
 import { MODELS, validateConfig, normalizeScene, safeImagePath, sourceKey, number, text, usableReferences } from './plugin/core.mjs';
-import { createContext, compileCharacter, planInstruction, scenePosition, validateAnchor, normalized } from './src/context.mjs';
+import { createContext, compileCharacter, planInstruction, scenePosition, validateAnchor, normalized, illustrationBlocks } from './src/context.mjs';
 import { validateTemplate } from './src/prompts.mjs';
 import { parsePlanJson } from './src/plan-json.mjs';
 import { AutomaticResponses, workflowEnabled } from './src/automatic.mjs';
@@ -26,6 +26,12 @@ import { bucketFromPadded } from './src/images.mjs';
 import { studio, mountSettings } from './src/studio.mjs';
 import { timelineInstruction,validateTimeline,resolveAt } from './src/timeline.mjs';
 import { el, button, notice, composer, inspect, viewer, modal, compareVersions, confirmAction, syncTone } from './src/ui.mjs';
+// [add] 씬북+ 추가 기능 (src/addon/)
+import { connect as connectAddon } from './src/addon/host.mjs';
+import { injectionPrompt, placementKey, isParagraphPlacement, anchorByOrder } from './src/addon/auto-placement.mjs';
+import { activeStyleIndex, restyle, applyStylePreset, writeActiveStyle, STYLE_NONE } from './src/addon/style-presets.mjs';
+import { deleteIllustrationImages, deletedJobIds } from './src/addon/gallery-delete.mjs';
+import { revealTools, initChatHelpers } from './src/addon/chat-helpers.mjs';
 
 const KEY = 'autopic2';
 // SillyTavern: in-chat injection, depth 0, System role.
@@ -60,7 +66,7 @@ function cleanSettings(value) {
     if(!INKS.some(([ink])=>ink===c.frameInk))c.frameInk='';
     if(!validFrame(c.frame,c.customFrames))c.frame='soft';
     if(c.frameWide&&!validFrame(c.frameWide,c.customFrames))c.frameWide='';
-    if(!['pov','visible','auto'].includes(c.playerMode)||!['inline','end'].includes(c.placement))throw new Error('표시 설정을 확인하세요.');
+    if(!['pov','visible','auto'].includes(c.playerMode)||!['inline','auto','end'].includes(c.placement))throw new Error('표시 설정을 확인하세요.'); // [add] 'auto'
     for(const key of ['world','direction','profileId'])text(c[key],12000,key);
     if(!Array.isArray(c.library)||c.library.length>100)throw new Error('인물 라이브러리는 최대 100명입니다.');
     c.library=c.library.map(item=>{
@@ -297,7 +303,7 @@ async function compose(index=lastIndex(),manual=true,initial=null,slotId=null,re
     if(stored?.value&&stored!==state.injected)state.injected=stored;
     // Show the picture being edited behind the placement board; without a specific one, the reply's first picture.
     const slots=viewState(target).slots,slot=slots.find(x=>x.id===slotId)??slots.find(x=>!x.deleted&&!x.hidden&&x.versions?.length),previewUrl=slot?.versions?.[slot.selected]?.url;
-    composer({context:target.snapshot,scenes,config:target.config,previewUrl,onAnalyze:(old,direction,scope)=>analyze(target,old,direction,scope),onGenerate:s=>enqueue(target,s,slotId),onDraft:async s=>{if(!current(target))throw new Error('편집 중 채팅이 변경됐습니다. 다시 열어 주세요.');viewState(target).draft=s;viewState(target).draftConfig=draftConfig(target.config);await saveMessage(target);}});
+    composer({context:target.snapshot,scenes,config:target.config,presets:settings().presets??[],previewUrl,onAnalyze:(old,direction,scope)=>analyze(target,old,direction,scope),onGenerate:s=>enqueue(target,s,slotId),onDraft:async s=>{if(!current(target))throw new Error('편집 중 채팅이 변경됐습니다. 다시 열어 주세요.');viewState(target).draft=s;viewState(target).draftConfig=draftConfig(target.config);await saveMessage(target);}});
 }
 // Scenes already saved with a reply: its draft, or the plan the AI wrote with it.
 function storedScenes(target){
@@ -357,12 +363,12 @@ function openIllustration(index,slot) {
     if(!viewState(target,false)?.slots.includes(slot)||slot.deleted)throw new Error('대상 답변이 바뀌었습니다. 이미지를 다시 열어 주세요.');
     const ensureCurrent=()=>{if(!current(target)||slot.deleted)throw new Error('대상 답변이 바뀌었습니다. 이미지를 다시 열어 주세요.');return context().chat.indexOf(target.message);};
     const dialog=viewer(job,{
-        actions:[{label:'수정',icon:'fa-pen',close:true,run:()=>{ensureCurrent();return openQuickEdit(index,slot);}},{label:'재생성',icon:'fa-rotate-right',close:true,run:()=>{ensureCurrent();return enqueue(target,[job.scene],slot.id,{...job.config,seed:-1});}}],
+        actions:[{label:'수정',icon:'fa-pen',close:true,run:()=>{ensureCurrent();return openQuickEdit(index,slot);}},{label:'재생성',icon:'fa-rotate-right',close:true,run:()=>{ensureCurrent();return enqueue(target,[job.scene],slot.id,{...restyle(job.config),seed:-1});}}],
         more:[
             {label:'AI 검수',icon:'fa-magnifying-glass',run:()=>reviewImage(job)},
             {label:'생성 기록',icon:'fa-file-lines',run:()=>inspect(job)},
             ...(slot.versions.length>1?[{label:'버전 비교',icon:'fa-columns',run:()=>compareVersions(slot.versions,slot.selected)}]:[]),
-            {label:'같은 시드로 생성',icon:'fa-rotate-right',run:()=>{ensureCurrent();return enqueue(target,[job.scene],slot.id,{...job.config,seed:job.seed});}},
+            {label:'같은 시드로 생성',icon:'fa-rotate-right',run:()=>{ensureCurrent();return enqueue(target,[job.scene],slot.id,{...restyle(job.config),seed:job.seed});}},
             {label:'기본 시드로 저장',icon:'fa-thumbtack',run:()=>{saveSettings({...settings(),seed:job.seed});notice(`Seed ${job.seed} 저장됨`);}},
             {label:'삭제',icon:'fa-trash-can',danger:true,run:async()=>{if(await deleteIllustration(target,slot))dialog.close();}},
         ],
@@ -373,14 +379,16 @@ function openQuickEdit(index,slot) {
     if(!viewState(target,false)?.slots.includes(slot)||slot.deleted)throw new Error('대상 답변이 바뀌었습니다. 이미지를 다시 열어 주세요.');
     const check=()=>{if(!current(target)||slot.deleted)throw new Error('대상 답변이 바뀌었습니다. 이미지를 다시 열어 주세요.');};
     // The picture's own prompts, with its look taken back out so it is shown and applied once.
-    quickEdit({scene:job.scene,config:editableConfig(job.config),seed:job.seed,imageUrl:job.url,
+    // [add] restyle: 적용 중인 프리셋 그림체가 있으면 그 그림체로 고치고 다시 그립니다.
+    const styled=restyle(job.config);
+    quickEdit({scene:job.scene,config:editableConfig(styled),seed:job.seed,imageUrl:job.url,
         onRewrite:async(scene,request)=>{check();return(await analyze(target,[{...scene,after:Math.min(scene.after,target.snapshot.blocks.length)}],request,'all',false))[0];},
         onGenerate:(scene,{size,keepSeed,saveDefault,...edits})=>{
             check();
             if(saveDefault)saveSettings({...settings(),...edits});
-            return enqueue(target,[scene],slot.id,{...job.config,...edits,seed:keepSeed?job.seed:-1,...(size?sizeFor(job.config,size):{})});
+            return enqueue(target,[scene],slot.id,{...styled,...edits,seed:keepSeed?job.seed:-1,...(size?sizeFor(job.config,size):{})});
         },
-        onDetail:(scene,edits)=>{check();return compose(index,true,[scene],slot.id,{...job.config,...edits,seed:job.seed});},
+        onDetail:(scene,edits)=>{check();return compose(index,true,[scene],slot.id,{...styled,...edits,seed:job.seed});},
     });
 }
 function renderMessage(index) {
@@ -411,11 +419,11 @@ function renderMessage(index) {
         const image=el('img');image.src=job.url;image.alt=sceneLabel(job.scene)||'삽화';image.loading='lazy';image.width=job.config.width;image.height=job.config.height;
         const imageWrap=el('div','ap2-image-wrap'),overlay=el('div','ap2-image-actions');
         overlay.setAttribute('aria-label','삽화 도구');
-        const open=button('',()=>openIllustration(index,slot));open.className='ap2-image-open';open.setAttribute('aria-label',`${sceneLabel(job.scene)||'삽화'} · 이미지 보기`);open.replaceChildren(image);
+        const open=button('',()=>revealTools(figure)?undefined:openIllustration(index,slot)); // [add] 터치: 첫 누름은 도구 표시open.className='ap2-image-open';open.setAttribute('aria-label',`${sceneLabel(job.scene)||'삽화'} · 이미지 보기`);open.replaceChildren(image);
         const targetForImage=()=>{const target=capture(index);if(!viewState(target,false)?.slots.includes(slot)||slot.deleted)throw new Error('대상 답변이 바뀌었습니다.');return target;};
         for(const [label,icon,action]of [
             ['수정','fa-pen',()=>{targetForImage();return openQuickEdit(index,slot);}],
-            ['재생성','fa-rotate-right',()=>enqueue(targetForImage(),[job.scene],slot.id,{...job.config,seed:-1})],
+            ['재생성','fa-rotate-right',()=>enqueue(targetForImage(),[job.scene],slot.id,{...restyle(job.config),seed:-1})],
         ]){const b=button('',action,false,icon);b.title=label==='재생성'?'같은 프롬프트, 새 시드로 다시 그리기':'프롬프트를 고쳐서 다시 그리기';b.setAttribute('aria-label',label);overlay.append(b);}
         imageWrap.append(open,overlay);figure.append(imageWrap);applyFrame(figure,imageWrap,open,job.config.width,job.config.height,config);
         if(slot.versions.length>1){
@@ -428,7 +436,10 @@ function renderMessage(index) {
         }
         const candidates=[...content.querySelectorAll('p')].filter(p=>!p.closest('details,pre,table,.ap2-figure'));
         const quote=slot.anchor?.quote;
-        const anchor=config.placement==='inline'&&quote?candidates.find(p=>normalized(p.textContent)===normalized(quote.replace(/[*_]/g,''))):null;
+        const inline=isParagraphPlacement(config.placement)&&quote; // [add] 문단 뒤(자동) 포함
+        let anchor=inline?candidates.find(p=>normalized(p.textContent)===normalized(quote.replace(/[*_]/g,''))):null;
+        // [add] 번역 등으로 화면 글이 원문과 달라졌을 때는 문단 순서로 같은 자리를 찾습니다.
+        if(!anchor&&inline)anchor=anchorByOrder(candidates,slot.anchor?.index,illustrationBlocks(slot.anchor?.source??'').length);
         if(anchor){(inlineTails.get(anchor)??anchor).after(figure);inlineTails.set(anchor,figure);}else content.append(figure);
         nodes.push(figure);
     }
@@ -472,7 +483,7 @@ function injectPrompt(type,options,dryRun){
     const c=visualSettings();
     if(dryRun||['quiet','impersonate'].includes(type)||!context().getCurrentChatId()||!c.promptInjection||c.automatic==='off')return;
     if(!context().setExtensionPrompt){setWorkflowStatus('현재 SillyTavern에서 프롬프트 주입을 지원하지 않습니다.');return;}
-    setIllustrationPrompt(renderInjection(c));
+    setIllustrationPrompt(injectionPrompt(c,renderInjection)); // [add] 문단 뒤(자동) 규칙
     setWorkflowStatus('삽화 프롬프트 등록됨 · 깊이 0 · System · 답변 기다리는 중');
 }
 async function processAutomatic(candidate) {
@@ -547,7 +558,10 @@ function showPlans(){
 }
 const api={settings,saveSettings,visualSettings,hasVisualOverride:where=>hasVisualScope(context(),where),visualScope:()=>activeVisualScope(context()),visualCharacterKey:()=>characterKey(context()),hasChat:()=>!!context().getCurrentChatId(),
     contextKey:scope,status:()=>analysisLocks.size?'답변 분석 중':queue.running?'삽화 생성 중':queue.paused?'생성 일시정지':workflowStatus,
-    exportChat:()=>downloadChat(context().chat,context().getCurrentChatId()??'삽화 채팅',settings().placement),
+    exportChat:()=>downloadChat(context().chat,context().getCurrentChatId()??'삽화 채팅',placementKey(settings().placement)),
+    // [add] 갤러리 삭제 · 프리셋 빠른 선택
+    deleteImages:(jobs,permanent)=>deleteIllustrationImages(jobs,permanent),deletedJobs:()=>deletedJobIds(),
+    activeStyle:()=>activeStyleIndex(),setActiveStyle:name=>writeActiveStyle(name),clearActiveStyle:()=>writeActiveStyle(STYLE_NONE),applyStyle:index=>applyStylePreset(index),
     saveVisual,resetVisual,
     references:async()=>(await request('references')).references,uploadReference:value=>request('references',value),prepareReferences:prepareV5References,
     deleteReference:async id=>{
@@ -585,6 +599,7 @@ const api={settings,saveSettings,visualSettings,hasVisualOverride:where=>hasVisu
     recover:async job=>{const target=capture();const copy=structuredClone(job);copy.scene.after=target.snapshot.blocks.at(-1).index;copy.scene.evidence='';await attach(target,copy);notice('마지막 답변 아래에 삽입했습니다.');},
 };
 function initialize() {
+    connectAddon({KEY,settings,saveSettings,scheduleRender,notice,safeImagePath}); // [add]
     const c=context();if(initializeSettings(c.extensionSettings))c.saveSettingsDebounced();
     const container=document.getElementById('extensions_settings2')??document.getElementById('extensions_settings');
     if(container&&!document.getElementById('ap2-settings'))mountSettings(api,container);
@@ -613,7 +628,7 @@ function initialize() {
     if(c.eventTypes.MESSAGE_EDITED){
         const edited=index=>{
             const ctx=context(),message=ctx.chat[Number(index)];
-            if(!message||message.is_user||message.is_system||!adoptEditedView(message.extra?.[KEY],message,settings().placement))return;
+            if(!message||message.is_user||message.is_system||!adoptEditedView(message.extra?.[KEY],message,placementKey(settings().placement)))return;
             const swipe=message.swipe_info?.[message.swipe_id??0];if(swipe)swipe.extra=structuredClone(message.extra);
             ctx.saveChatDebounced?.();scheduleRender();
         };
@@ -656,6 +671,7 @@ function initialize() {
             helpString:'씬북 수동 생성: 마지막 답변의 그림을 바로 만듭니다. 예: /scenegen · /scenegen rainy street at night · /scenegen mode=ai size=landscape 둘이 마주 보는 장면',
         }));
     }
+    initChatHelpers(scheduleRender); // [add] 터치 도구 아이콘 · 삽화 다시 붙이기
     scheduleRender();
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',initialize,{once:true});else initialize();
