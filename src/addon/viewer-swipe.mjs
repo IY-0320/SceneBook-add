@@ -5,9 +5,10 @@
 export function enableSequence(dialog,{job,sequence,show,usable,canSwipe=()=>true}){
     let at=Math.max(0,sequence.jobs.findIndex(x=>x.id===job.id));
     // 끝에서 한 번 더 밀면 처음으로, 처음에서 반대로 밀면 마지막으로 돌아갑니다.
-    const count=sequence.jobs.length,wrap=n=>((n%count)+count)%count;
+    // 그림 목록은 열린 동안에도 늘어날 수 있어(새 버전 완성) 매번 길이를 다시 읽습니다.
+    const wrap=n=>{const count=sequence.jobs.length;return((n%count)+count)%count;};
     const go=step=>{
-        if(count<2)return;
+        const count=sequence.jobs.length;if(count<2)return;
         let next=wrap(at+step),tries=0;
         while(!usable(sequence.jobs[next]?.url)&&tries++<count)next=wrap(next+step);
         if(next===at||!usable(sequence.jobs[next]?.url))return;
@@ -20,6 +21,6 @@ export function enableSequence(dialog,{job,sequence,show,usable,canSwipe=()=>tru
         if(!start||!canSwipe()){start=null;return;}const t=e.changedTouches[0],dx=t.clientX-start.x,dy=t.clientY-start.y;start=null;
         if(Math.abs(dx)>60&&Math.abs(dx)>Math.abs(dy)*1.5)go(dx<0?1:-1);
     },{passive:true});
-    dialog.addEventListener('keydown',e=>{if(e.key==='ArrowRight')go(1);else if(e.key==='ArrowLeft')go(-1);});
+    dialog.addEventListener('keydown',e=>{if(!canSwipe())return;if(e.key==='ArrowRight')go(1);else if(e.key==='ArrowLeft')go(-1);});
     return at;
 }

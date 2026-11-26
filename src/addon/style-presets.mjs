@@ -25,9 +25,15 @@ export function activeStyleIndex(){
     if(name){const i=list.findIndex(p=>p.name===name&&matchesStyle(p,now));if(i>=0)return i;}
     return list.findIndex(p=>matchesStyle(p,now));
 }
-// 이미 만든 그림을 다시 만들 때, 적용 중인 그림체를 그 그림의 설정 위에 덮어씁니다.
+// 직접 고른(적용·빠른 선택) 프리셋이 지금 설정과 같을 때만 그 번호. 설정이 우연히 프리셋과 같은 것만으로는 -1.
+function chosenStyleIndex(){
+    const now=host.settings(),name=readActiveStyle();
+    if(!name||name===STYLE_NONE)return -1;
+    return(now.presets??[]).findIndex(p=>p.name===name&&matchesStyle(p,now));
+}
+// 이미 만든 그림을 다시 만들 때, 직접 고른 그림체가 있으면 그 그림의 설정 위에 덮어씁니다.
 export function restyle(config){
-    if(!config||activeStyleIndex()<0)return config;
+    if(!config||chosenStyleIndex()<0)return config;
     const now=host.settings();
     return{...config,...Object.fromEntries(STYLE_KEYS.filter(k=>now[k]!==undefined).map(k=>[k,structuredClone(now[k])]))};
 }

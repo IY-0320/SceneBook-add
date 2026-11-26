@@ -391,7 +391,7 @@ function openQuickEdit(index,slot) {
         onRewrite:async(scene,request)=>{check();return(await analyze(target,[{...scene,after:Math.min(scene.after,target.snapshot.blocks.length)}],request,'all',false))[0];},
         onGenerate:(scene,{size,keepSeed,saveDefault,...edits})=>{
             check();
-            if(saveDefault)saveSettings({...settings(),...edits});
+            if(saveDefault)saveSettings({...settings(),style:edits.style,negative:edits.negative,look:edits.look});/* [add] 도움말대로 메인 프롬프트·제외 요소·그림체만 기본값에 저장 */
             return enqueue(target,[scene],slot.id,{...styled,...edits,seed:keepSeed?job.seed:-1,...(size?sizeFor(job.config,size):{})});
         },
         onDetail:(scene,edits)=>{check();return compose(index,true,[scene],slot.id,{...styled,...edits,seed:job.seed});},
@@ -634,7 +634,7 @@ function initialize() {
     if(c.eventTypes.MESSAGE_EDITED){
         const edited=index=>{
             const ctx=context(),message=ctx.chat[Number(index)];
-            if(!message||message.is_user||message.is_system||!adoptEditedView(message.extra?.[KEY],message,placementKey(settings().placement)))return;
+            if(!message||message.is_user||message.is_system||!adoptEditedView(message.extra?.[KEY],message,settings().placement))return;
             const swipe=message.swipe_info?.[message.swipe_id??0];if(swipe)swipe.extra=structuredClone(message.extra);
             ctx.saveChatDebounced?.();scheduleRender();
         };

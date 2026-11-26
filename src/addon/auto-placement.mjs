@@ -41,8 +41,8 @@ export function injectionPrompt(c,renderInjection){
 
 // 번역 등으로 화면의 글이 원문과 달라져 인용문으로 문단을 못 찾을 때, 문단 순서로 같은 자리를 찾습니다.
 // candidates: 화면의 문단들, index: 원문에서 몇 번째 문단인지(1부터), total: 원문 문단 수.
+// 화면 문단 수가 원문과 다르면 자리를 짐작하지 않고 null(원본처럼 답변 아래)을 돌려줍니다.
 export function anchorByOrder(candidates,index,total){
-    if(!(index>0)||!total||!candidates.length)return null;
-    if(candidates.length===total)return candidates[index-1]??null;
-    return candidates[Math.min(candidates.length-1,Math.max(0,Math.round(index/total*candidates.length)-1))];
+    if(!(index>0)||!total||candidates.length!==total)return null;
+    return candidates[index-1]??null;
 }

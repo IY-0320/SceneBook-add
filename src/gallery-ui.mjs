@@ -45,7 +45,7 @@ export async function galleryPage(page,{api,open,isCurrent,forced}) {
         const full=deleteMode==='full';
         if(scope!==api.contextKey())throw new Error('채팅이 바뀌었습니다. 갤러리를 새로고침해 주세요.');
         const result=await api.deleteImages(chosen,full);
-        notice(full?`${result.deleted}개의 이미지 파일을 삭제했습니다.${result.failed?` ${result.failed}개는 파일을 지우지 못했습니다.`:''}`:`${result.hidden}개를 갤러리에서 숨겼습니다.`,!!result.failed);
+        notice(full?`${result.deleted}개의 이미지 파일을 삭제했습니다.${result.failed?` ${result.failed}개는 파일을 지우지 못했습니다.`:''}${result.chatChanged?' 지우는 중 채팅이 바뀌어 원래 채팅의 삽화 기록은 그대로입니다.':''}`:`${result.hidden}개를 갤러리에서 숨겼습니다.`,!!result.failed||!!result.chatChanged);
         deleteStage='';deleteMode='';picked.clear();if(full)serverJobs=null;return refresh();
     };
     // 선택 표시: 고른 그림에는 오른쪽 위 체크 표시만 붙입니다.

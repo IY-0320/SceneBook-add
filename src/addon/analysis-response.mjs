@@ -58,12 +58,12 @@ export function analysisLengthField({field,notice}){
     amount.wrap.hidden=!saved;wrap.append(mode.wrap,amount.wrap);
     for(const f of [mode,amount])for(const type of ['input','change'])f.input.addEventListener(type,event=>event.stopPropagation());
     const commit=()=>{
-        if(mode.read()!=='custom'){writeAnalysisLength(0);return;}
+        if(mode.read()!=='custom'){writeAnalysisLength(0);return true;}
         const value=Math.round(Number(amount.read()));
-        if(!Number.isFinite(value)||value<LENGTH_MIN||value>LENGTH_MAX){notice(`${LENGTH_MIN.toLocaleString()}~${LENGTH_MAX.toLocaleString()} 사이로 입력하세요.`,true);return;}
-        writeAnalysisLength(value);
+        if(!Number.isFinite(value)||value<LENGTH_MIN||value>LENGTH_MAX){notice(`${LENGTH_MIN.toLocaleString()}~${LENGTH_MAX.toLocaleString()} 사이로 입력하세요.`,true);return false;}
+        writeAnalysisLength(value);return true;
     };
-    mode.input.addEventListener('change',()=>{amount.wrap.hidden=mode.read()!=='custom';commit();notice(mode.read()==='custom'?`분석 답 길이 · ${Math.round(Number(amount.read())).toLocaleString()}`:'분석 답 길이 · 자동');});
-    amount.input.addEventListener('change',()=>{commit();if(readAnalysisLength())notice(`분석 답 길이 · ${readAnalysisLength().toLocaleString()}`);});
+    mode.input.addEventListener('change',()=>{amount.wrap.hidden=mode.read()!=='custom';if(commit())notice(mode.read()==='custom'?`분석 답 길이 · ${Math.round(Number(amount.read())).toLocaleString()}`:'분석 답 길이 · 자동');});
+    amount.input.addEventListener('change',()=>{if(commit())notice(`분석 답 길이 · ${readAnalysisLength().toLocaleString()}`);});
     return wrap;
 }
