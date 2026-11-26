@@ -138,6 +138,8 @@ function promptPage(page,{api,open}){
         button('지시문 편집 · 공유',()=>promptEditor({...api.settings(),...readFields(fields)},value=>{api.saveSettings({...api.settings(),...value});return open('prompt',true);},{initial:'injection'}),false,'fa-pen'));
     saveBar(page,()=>api.saveSettings({...api.settings(),...readFields(fields)}));
 }
+// [add] '프리셋 · 백업'을 펼쳐 두었는지 (탭을 다시 그려도 유지)
+let presetsOpen=false;
 function imagePage(page,{api,open}){
     const c=api.settings(),fields={};
     // [add] 프리셋 · 백업에 저장한 프리셋(그림체)을 바로 고르는 칸. 설정값 저장 대상이 아니므로 fields에 넣지 않습니다.
@@ -188,7 +190,9 @@ function imagePage(page,{api,open}){
     addField(analysis,fields,'contextMessages','함께 읽을 이전 메시지',c.contextMessages,{type:'number',min:0,max:30,step:1});
     analysis.append(button('마지막 답변 분석',()=>api.analyze(),false,'fa-wand-magic-sparkles'));
     saveBar(page,()=>api.saveSettings({...api.settings(),...readFields(fields)}));
-    const presets=foldout(page,'프리셋 · 백업');
+    const presets=foldout(page,'프리셋 · 백업',presetsOpen);
+    // [add] 적용·삭제로 탭을 다시 그려도 펼친 상태를 유지합니다.
+    presets.parentElement.addEventListener('toggle',event=>{presetsOpen=event.target.open;});
     presets.append(el('p','ap2-muted','프리셋은 모델·크기·프롬프트·참조를 묶어 저장합니다.'));
     const presetName=field('새 프리셋 이름','');presetName.input.addEventListener('input',event=>event.stopPropagation());presets.append(presetName.wrap);
     presets.append(button('프리셋 저장',()=>{const name=presetName.read().trim();if(!name)throw new Error('프리셋 이름을 입력하세요.');const latest={...api.settings(),...readFields(fields)},list=[...(latest.presets??[])];if(list.some(p=>p.name===name))throw new Error('같은 이름의 프리셋이 있습니다.');list.push({name,config:latest});api.saveSettings({...latest,presets:list});return open('image',true);},false,'fa-plus'));
