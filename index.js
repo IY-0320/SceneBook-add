@@ -50,7 +50,7 @@ function visualSettings(where=null){return resolveVisualSettings(context(),setti
 function cleanSettings(value) {
     const c = Object.fromEntries(Object.keys(DEFAULTS).map(k => [k, value[k] ?? structuredClone(DEFAULTS[k])]));
     validateConfig(c);validateTemplate(c.analysisPrompt);validateInjectionTemplate(c.injectionPrompt);
-    for (const [key,min,max] of [['maxScenes',1,6],['every',1,20],['sessionLimit',1,100],['contextMessages',0,30],['displayWidth',240,1200]]) number(c[key],min,max,key,true);
+    for (const [key,min,max] of [['maxScenes',1,6],['every',1,20],['contextMessages',0,30],['displayWidth',240,1200]]) number(c[key],min,max,key,true);
     for (const key of ['quality','compact','budgetGuard','transparent','promptInjection','leanPrompt','autoSize']) if(typeof c[key]!=='boolean')throw new Error(`${key}: 켜기/끄기 값이 필요합니다.`);
     if(c.analysisLength!==0)number(c.analysisLength,1000,128000,'분석 답 길이',true);
     if(!['tap','always'].includes(c.imageTools))c.imageTools='tap';
@@ -58,6 +58,9 @@ function cleanSettings(value) {
     if(![0,2,3,4,5,6].includes(c.panelCount))c.panelCount=0;
     c.speechBubbles=c.speechBubbles===true;
     if(!['story','stack'].includes(c.cutLayout))c.cutLayout='story';
+    if(!['reply','separate'].includes(c.planSource))c.planSource='reply';
+    c.separateProfileId=typeof c.separateProfileId==='string'?c.separateProfileId.slice(0,200):'';
+    number(c.separateLength,1000,128000,'보조 모델 최대 응답 길이',true);
     c.galleryHidden=Array.isArray(c.galleryHidden)?[...new Set(c.galleryHidden.filter(id=>typeof id==='string'&&id.length<=100))].slice(-5000):[];
     if(!['off','review','generate'].includes(c.automatic))throw new Error('자동 처리 설정을 확인하세요.');
     if(!['quick','precise'].includes(c.analysisMode))throw new Error('분석 모드를 확인하세요.');
@@ -279,7 +282,6 @@ async function enqueue(target,scenes,slotId=null,overrideConfig=null) {
     if(scenes.some(s=>s.page?.panels?.length)&&!pagesAllowed(c))throw new Error('만화 페이지는 V5 모델에서만 그릴 수 있습니다. 그림 설정에서 V5를 고르거나, 장면 편집에서 한 장면으로 다시 쓰세요.');
     const checked=scenes.map(s=>normalizeScene(scenePosition(s,target.snapshot,target.config.placement),c.model,target.snapshot.blocks.length));
     validateConfig(c);
-    if(sessionRequests+queue.items.filter(x=>x.state==='waiting').length+checked.length>settings().sessionLimit)throw new Error('이번 접속의 생성 요청 한도를 초과합니다. 생성 설정에서 한도를 조정하세요.');
     const health=await checkHealth();if(!health.hasKey)throw new Error('SillyTavern에서 NovelAI 키를 먼저 저장하세요.');
     // Only the references this model can use travel with the job.
     const references=usableReferences(c.model,c.references??[]);
@@ -311,7 +313,6 @@ async function enqueue(target,scenes,slotId=null,overrideConfig=null) {
             if(!current(target))throw new Error('대상 변경으로 대기 중 생성을 취소했습니다.');
             if(slotId&&viewState(target,false)?.slots.find(slot=>slot.id===slotId)?.deleted)throw new Error('삽화 삭제로 대기 중 재생성을 취소했습니다.');
             if(target.automaticCandidate&&(!workflowEnabled(settings())||settings().automatic!=='generate'||target.automaticCandidate.generation?.stopped))throw new Error('자동 처리 중단으로 대기 중 생성을 취소했습니다.');
-            if(sessionRequests>=settings().sessionLimit)throw new Error('생성 요청 한도에 도달했습니다.');
             sessionRequests++;
             const label=sceneLabel(scene);
             progress=progressNotice(`삽화 생성 중${checked.length>1?` (${position+1}/${checked.length})`:''}${label?` · ${label}`:''}`);
@@ -587,7 +588,7 @@ function injectPrompt(type,options,dryRun){
     if(dryRun)return;
     clearInjection();
     const c=visualSettings();
-    if(dryRun||['quiet','impersonate'].includes(type)||!context().getCurrentChatId()||!c.promptInjection||c.automatic==='off')return;
+    if(dryRun||['quiet','impersonate'].includes(type)||!context().getCurrentChatId()||!c.promptInjection||c.automatic==='off'||c.planSource==='separate')return;
     if(!context().setExtensionPrompt){setWorkflowStatus('현재 SillyTavern에서 프롬프트 주입을 지원하지 않습니다.');return;}
     setIllustrationPrompt(renderInjection(withCuts(c)));
     setWorkflowStatus('삽화 프롬프트 등록됨 · 깊이 0 · System · 답변 기다리는 중');
@@ -614,6 +615,7 @@ async function processAutomatic(candidate) {
     if(state.automatic?.source===target.snapshot.source&&state.automatic.status!=='missing')return;
     if(embedded.found)state.injected=embedded;
     state.automaticOrder??=++receivedCount;
+    if(!embedded.found&&c.planSource==='separate')return writeSeparately(candidate,target,state,c);
     if(!embedded.found){
         const reason='AI 답변에 삽화 지시가 없어 이미지를 생성하지 않았습니다. 작업 → 지시 기록에서 확인하세요.';
         state.automatic={source:target.snapshot.source,status:'missing',error:reason};setWorkflowStatus(reason);notice(reason);await saveMessage(target);return;
@@ -629,14 +631,31 @@ async function processAutomatic(candidate) {
         const scenes=injectedScenes(embedded.value,target.snapshot.source,target.config,{onInvalid:issue=>warnings.push(issue)});
         state.draft=scenes;state.draftConfig=draftConfig(target.config);
         if((state.automaticOrder-1)%c.every){state.automatic.status='skipped';state.automatic.error=`답변 간격 ${c.every} · 이번 답변 건너뜀`;setWorkflowStatus(state.automatic.error);await saveMessage(target);return;}
-        if(c.automatic==='generate'&&scenes.length){
-            if(sessionRequests>=c.sessionLimit)throw new Error('이번 접속의 생성 요청 한도에 도달했습니다.');
-            if(queue.paused)throw new Error('생성 대기열이 일시정지되어 있습니다. 작업 탭에서 확인하세요.');
-        }
-        if(!current(target)||!workflowEnabled(settings())||candidate.generation?.stopped){state.automatic.status='cancelled';return;}
-        if(settings().automatic==='generate'&&scenes.length){target.automaticCandidate=candidate;await enqueue(target,scenes);state.automatic.status='queued';}
-        else {state.automatic.status='ready';setWorkflowStatus(scenes.length?`장면 ${scenes.length}개 준비됨 · 장면 편집에서 확인`:'이번 답변에는 삽화에 적합한 장면이 없습니다.');notice(scenes.length?`장면 ${scenes.length}개 준비됨 · 장면 편집에서 확인`:'이번 답변에는 생성할 삽화가 없습니다.');}
+        if(c.automatic==='generate'&&scenes.length&&queue.paused)throw new Error('생성 대기열이 일시정지되어 있습니다. 작업 탭에서 확인하세요.');
+        if(!await deliverScenes(candidate,target,state,scenes))return;
         if(warnings.length)notice(`장면 ${scenes.length}개 처리 · ${warnings.length}개 제외. 작업 → 지시 기록에서 이유를 확인할 수 있습니다.`);
+        await saveMessage(target);
+    }catch(e){state.automatic.status='failed';state.automatic.error=e.message;if(current(target))await saveMessage(target);throw e;}
+}
+// Scenes that are ready for a reply: drawn now, or kept as a draft to check first.
+async function deliverScenes(candidate,target,state,scenes){
+    if(!current(target)||!workflowEnabled(settings())||candidate.generation?.stopped){state.automatic.status='cancelled';return false;}
+    if(settings().automatic==='generate'&&scenes.length){target.automaticCandidate=candidate;await enqueue(target,scenes);state.automatic.status='queued';}
+    else {state.automatic.status='ready';setWorkflowStatus(scenes.length?`장면 ${scenes.length}개 준비됨 · 장면 편집에서 확인`:'이번 답변에는 삽화에 적합한 장면이 없습니다.');notice(scenes.length?`장면 ${scenes.length}개 준비됨 · 장면 편집에서 확인`:'이번 답변에는 생성할 삽화가 없습니다.');}
+    return true;
+}
+// The reply carried nothing about pictures: a helper model reads it now and writes
+// the scenes, with its own connection profile and response length.
+async function writeSeparately(candidate,target,state,c){
+    if((state.automaticOrder-1)%c.every){state.automatic={source:target.snapshot.source,status:'skipped',error:`답변 간격 ${c.every} · 이번 답변 건너뜀`};setWorkflowStatus(state.automatic.error);await saveMessage(target);return;}
+    state.automatic={source:target.snapshot.source,status:'reading'};
+    try{
+        if(c.automatic==='generate'&&queue.paused)throw new Error('생성 대기열이 일시정지되어 있습니다. 작업 탭에서 확인하세요.');
+        await saveMessage(target);
+        setWorkflowStatus('보조 모델이 장면을 쓰는 중…');
+        target.config={...target.config,profileId:c.separateProfileId,analysisLength:c.separateLength};
+        const scenes=await analyze(target);
+        if(!await deliverScenes(candidate,target,state,scenes))return;
         await saveMessage(target);
     }catch(e){state.automatic.status='failed';state.automatic.error=e.message;if(current(target))await saveMessage(target);throw e;}
 }
@@ -699,7 +718,19 @@ const api={settings,saveSettings,visualSettings,hasVisualOverride:where=>hasVisu
     showPlans,chatImages:()=>context().chat.flatMap(message=>Object.values(message.extra?.[KEY]?.views??{}).flatMap(view=>(view.slots??[]).flatMap(slot=>slot.versions??[]))),
     settingsHistory:()=>settingsHistory(context().extensionSettings),restoreSettings:value=>{const currentValue=settings();preserveSettings(context().extensionSettings,cleanSettings({...currentValue,...value}),{reason:'복구 전',force:true});context().saveSettingsDebounced();document.dispatchEvent(new Event('scenebook-settings-changed'));if(!workflowEnabled(settings())){clearInjection();automatic.stop();queue.cancelWaiting(item=>item.automatic);}},
     isImage:safeImagePath,review:reviewImage,queue:()=>queue.items,queuePaused:()=>queue.paused,usage:()=>sessionRequests,toggleQueue:()=>queue.toggle(),cancelQueue:()=>queue.cancelWaiting(),
-    profiles:()=>context().extensionSettings.connectionManager?.profiles??[],character:()=>context().characters?.[context().characterId],
+    profiles:()=>context().extensionSettings.connectionManager?.profiles??[],
+    responseLength:()=>{const c=context(),s=c.chatCompletionSettings;return c.mainApi==='openai'&&s?{chat:true,value:Number(s.openai_max_tokens)||0,context:Number(s.openai_max_context)||0}:{chat:false};},
+    setResponseLength:value=>{
+        const c=context(),s=c.chatCompletionSettings;
+        if(c.mainApi!=='openai'||!s)throw new Error('채팅 완성(Chat Completion) API에서만 자동으로 바꿀 수 있습니다. AI 응답 설정에서 응답 길이를 직접 늘려 주세요.');
+        const room=Number(s.openai_max_context)||0;
+        // The reply's share comes out of the context; leave room for the conversation itself.
+        if(room<value+16000)throw new Error(`컨텍스트 크기가 ${room.toLocaleString()} 토큰이라 응답 길이를 ${value.toLocaleString()}으로 두면 대화가 들어갈 자리가 부족합니다. AI 응답 설정에서 컨텍스트 크기를 먼저 늘려 주세요.`);
+        const input=document.getElementById('openai_max_tokens');
+        if(input){input.value=String(value);input.dispatchEvent(new Event('input',{bubbles:true}));}
+        if(Number(s.openai_max_tokens)!==value){s.openai_max_tokens=value;c.saveSettingsDebounced();}
+        return value;
+    },character:()=>context().characters?.[context().characterId],
     importSettings:value=>{if(value.schema!==1||!value.settings)throw new Error('씬북 설정 파일이 아닙니다.');saveSettings({...value.settings,automatic:'off'});},
     recover:async job=>{const target=capture();const copy=structuredClone(job);copy.scene.after=target.snapshot.blocks.at(-1).index;copy.scene.evidence='';await attach(target,copy);notice('마지막 답변 아래에 삽입했습니다.');},
 };
@@ -720,6 +751,8 @@ function initialize() {
         wand.append(holder);
     }
     for(const name of ['CHARACTER_MESSAGE_RENDERED','MESSAGE_EDITED','MESSAGE_UPDATED','MESSAGE_SWIPED','MESSAGE_DELETED','CHAT_CHANGED'])if(c.eventTypes[name])c.eventSource.on(c.eventTypes[name],()=>{if(name==='CHAT_CHANGED'){automatic.reset();receivedCount=0;clearInjection();queue.cancelWaiting();setWorkflowStatus('');document.dispatchEvent(new Event('scenebook-context-changed'));}scheduleRender();});
+    // The chat's response length lives in SillyTavern's own settings: show its advice anew when they change.
+    for(const name of ['MAIN_API_CHANGED','OAI_PRESET_CHANGED_AFTER','CHATCOMPLETION_SOURCE_CHANGED','CONNECTION_PROFILE_LOADED','SETTINGS_UPDATED'])if(c.eventTypes[name])c.eventSource.on(c.eventTypes[name],()=>document.dispatchEvent(new Event('scenebook-workflow-status')));
     if(c.eventTypes.CHARACTER_RENAMED)c.eventSource.on(c.eventTypes.CHARACTER_RENAMED,(oldAvatar,newAvatar)=>{
         const saved={...characterVisuals(context())};if(!Object.hasOwn(saved,oldAvatar)||typeof newAvatar!=='string'||!newAvatar)return;
         saved[newAvatar]=saved[oldAvatar];if(oldAvatar!==newAvatar)delete saved[oldAvatar];saveSettings({...settings(),characterVisuals:saved});

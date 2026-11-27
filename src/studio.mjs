@@ -30,20 +30,46 @@ function installationHelp(){
     for(const message of ['씬북 확장 폴더의 server-plugin/autopic2 폴더를 SillyTavern/plugins/autopic2에 복사합니다. (확장 폴더에서 node install-server.mjs를 실행해도 됩니다.)','SillyTavern의 config.yaml에서 enableServerPlugins를 true로 바꾸고 서버를 완전히 껐다가 다시 켭니다.','SillyTavern의 API 연결에서 NovelAI를 고르고 키를 저장한 뒤, 시작 탭의 다시 확인을 누릅니다.'])steps.append(el('li','',message));body.append(steps);
 }
 // The same on/off and mode controls appear in the drawer and in the window.
+const RECOMMENDED_RESPONSE=40000;
 function workflowControls(api){
     const toggle=field('자동 삽화',workflowEnabled(api.settings()),{type:'checkbox'}),help=el('p','ap2-muted'),status=el('p','ap2-workflow-status');status.setAttribute('role','status');
     const mode=segmented('처리 방식',[['generate','바로 그리기'],['review','초안만 저장']],api.settings().automatic==='review'?'review':'generate',value=>api.saveSettings({...api.settings(),automatic:value}));
     toggle.wrap.classList.add('ap2-workflow-toggle');
     toggle.input.addEventListener('change',()=>{const c=api.settings(),on=toggle.read();api.saveSettings({...c,promptInjection:on,automatic:on&&c.automatic==='off'?'generate':c.automatic});});
+    // Where the scenes are written: at the end of the reply, or by a helper model once the reply is in.
+    const source=segmented('장면 쓰는 곳',[['reply','답변에 함께'],['separate','답변 후 보조 모델']],api.settings().planSource==='separate'?'separate':'reply',value=>api.saveSettings({...api.settings(),planSource:value}));
+    const sourceRow=el('div','ap2-quick-shape');sourceRow.append(el('span','','장면 쓰는 곳'),source.wrap);
+    sourceRow.title='답변에 함께: 대화 AI가 답변 끝에 장면을 같이 씁니다. 답변 후 보조 모델: 답변에는 아무것도 넣지 않고, 답변이 오면 고른 연결 프로필로 따로 장면을 씁니다.';
+    const helper=el('div','ap2-grid'),saved=api.settings();
+    const profile=field('보조 모델 연결 프로필',saved.separateProfileId??'',{choices:[['','현재 채팅 연결'],...api.profiles().map(p=>[p.id,p.name])]});
+    const length=field('최대 응답 길이 (토큰)',saved.separateLength??16000,{type:'number',min:1000,max:128000,step:1000});
+    helper.append(profile.wrap,length.wrap);
+    const saveHelper=(key,value)=>{try{api.saveSettings({...api.settings(),[key]:value});}catch(e){notice(e.message,true);}};
+    profile.input.addEventListener('change',()=>saveHelper('separateProfileId',profile.read()));
+    length.input.addEventListener('change',()=>saveHelper('separateLength',length.read()));
+    // Scenes written at the end of the reply need room after the story: suggest a response length that leaves it.
+    const advice=el('div','ap2-note ap2-response-advice'),adviceText=el('p','');
+    const adviceButton=button(`${RECOMMENDED_RESPONSE.toLocaleString()}으로 설정`,()=>{api.setResponseLength(RECOMMENDED_RESPONSE);notice(`최대 응답 길이를 ${RECOMMENDED_RESPONSE.toLocaleString()} 토큰으로 바꿨습니다. 프리셋을 저장해 두면 다음에도 유지됩니다.`);refresh();},false,'fa-arrows-up-to-line');
+    advice.append(adviceText,adviceButton);
     const refresh=()=>{
-        const c=api.settings(),on=workflowEnabled(c),every=c.every===1?'답변마다':`답변 ${c.every}개마다`;
+        const c=api.settings(),on=workflowEnabled(c),every=c.every===1?'답변마다':`답변 ${c.every}개마다`,separate=c.planSource==='separate';
         toggle.input.checked=on;mode.set(c.automatic==='review'?'review':'generate');if(mode.wrap.hidden!==!on)mode.wrap.hidden=!on;
+        source.set(separate?'separate':'reply');sourceRow.hidden=!on;helper.hidden=!on||!separate;
+        if(document.activeElement!==profile.input)profile.input.value=c.separateProfileId??'';
+        if(document.activeElement!==length.input)length.input.value=String(c.separateLength??16000);
         setText(help,!on?'꺼져 있습니다. 답변에 삽화 지시를 넣지 않고 자동으로 그리지도 않습니다. 필요할 때 수동 생성으로 그릴 수 있습니다.'
+            :separate?(c.automatic==='review'?'답변이 오면 보조 모델이 따로 장면을 써서 초안으로만 저장합니다. 답변에는 삽화 지시가 들어가지 않습니다.'
+                :`답변이 오면 보조 모델이 따로 장면을 쓰고, ${every} 그림을 자동으로 만들어 넣습니다. 답변에는 삽화 지시가 들어가지 않습니다.`)
             :c.automatic==='review'?'AI가 답변과 함께 쓴 삽화 지시를 초안으로만 저장합니다. 확인한 뒤 직접 생성하세요.'
             :`AI가 답변과 함께 삽화 지시를 쓰고, ${every} 그림을 자동으로 만들어 답변 아래에 넣습니다.`);
+        const reply=api.responseLength(),short=reply.chat?reply.value<RECOMMENDED_RESPONSE:true;
+        advice.hidden=!on||separate||!short;adviceButton.hidden=!reply.chat;
+        setText(adviceText,reply.chat
+            ?`답변 끝에 장면을 같이 쓰기 때문에, 답변이 잘리지 않게 최대 응답 길이를 ${RECOMMENDED_RESPONSE.toLocaleString()} 토큰으로 두는 걸 권장합니다. 지금 ${reply.value.toLocaleString()} 토큰.`
+            :`답변 끝에 장면을 같이 쓰기 때문에 최대 응답 길이를 넉넉히(권장 ${RECOMMENDED_RESPONSE.toLocaleString()} 토큰) 두세요. 지금 연결된 API는 AI 응답 설정에서 직접 바꿔 주세요.`);
         const text=api.status?.()||'';setText(status,text);if(status.hidden!==!text)status.hidden=!text;
     };
-    return{toggle,help,mode,status,refresh};
+    return{toggle,help,mode,sourceRow,helper,advice,status,refresh};
 }
 function homePage(page,{api,open,close,listen}){
     const banner=el('p','ap2-ready');banner.setAttribute('role','status');
@@ -76,10 +102,9 @@ function homePage(page,{api,open,close,listen}){
     const auto=section(page,'자동 삽화'),flow=workflowControls(api),limits=el('div','ap2-grid'),fields={},c=api.settings();
     auto.querySelector('.ap2-section-head').replaceWith(flow.toggle.wrap);
     addField(limits,fields,'every','답변 간격',c.every,{type:'number',min:1,max:20,step:1});
-    addField(limits,fields,'sessionLimit','접속당 한도',c.sessionLimit,{type:'number',min:1,max:100,step:1});
     const limitState=el('p','ap2-muted');limitState.setAttribute('role','status');
     limits.addEventListener('change',()=>{try{api.saveSettings({...api.settings(),...readFields(fields)});setText(limitState,'');}catch(e){setText(limitState,`저장 안 됨 · ${e.message}`);}});
-    auto.append(flow.help,flow.mode.wrap,limits,limitState,flow.status);
+    auto.append(flow.help,flow.mode.wrap,flow.sourceRow,flow.helper,flow.advice,limits,limitState,flow.status);
     const actions=section(page,'바로 하기'),quick=el('div','ap2-quick');
     quick.append(
         button('수동 생성',()=>{api.manual();close();},true,'fa-wand-magic-sparkles'),
@@ -108,7 +133,7 @@ function homePage(page,{api,open,close,listen}){
         for(const [key,f]of Object.entries(fields))if(document.activeElement!==f.input&&f.input.value!==String(s[key]))f.input.value=s[key];
         show(limits,workflowEnabled(s));
     };
-    page.refresh=()=>{if(stale)refresh();void check();};
+    page.refresh=()=>{if(stale)refresh();else flow.refresh();void check();};
     listen(['scenebook-workflow-status','scenebook-settings-changed','scenebook-visual-changed'],refresh);listen(['scenebook-context-changed'],()=>{if(page.hidden)stale=true;else void check();});
     flow.refresh();describe();show(limits,workflowEnabled(c));void check();
 }
@@ -273,7 +298,7 @@ function queuePage(page,{api,open}){
     const waiting=api.queue().filter(item=>item.state==='waiting').length,cancel=button('대기 취소',()=>{api.cancelQueue();return open('queue');},false,'fa-ban');cancel.disabled=!waiting;
     const actions=el('div','ap2-actions');actions.append(button(api.queuePaused()?'재개':'일시정지',()=>{api.toggleQueue();return open('queue');},false,api.queuePaused()?'fa-play':'fa-pause'),cancel,actionMenu([{label:'지시 기록',icon:'fa-file-lines',run:()=>api.showPlans()},{label:'계정 사용량',icon:'fa-coins',run:usage},{label:'새로고침',icon:'fa-rotate-right',run:()=>open('queue')}]));page.append(actions);
     const drafts=api.pendingDrafts().length;if(drafts)actions.prepend(button(`초안 ${drafts}개 생성`,async()=>{if(!await confirmAction('초안 일괄 생성',`그림이 없는 답변 ${drafts}개의 초안을 모두 생성 대기열에 넣을까요?`,'생성'))return;notice(`${await api.generateDrafts()}개 장면을 대기열에 넣었습니다.`);return open('queue');},true,'fa-images'));
-    page.append(el('p','ap2-muted',`이번 접속 이미지 요청 ${api.usage()} / ${api.settings().sessionLimit}회${api.queuePaused()?' · 일시정지됨':''}`));
+    page.append(el('p','ap2-muted',`이번 접속 이미지 요청 ${api.usage()}회${api.queuePaused()?' · 일시정지됨':''}`));
     if(!api.queue().length)page.append(el('p','ap2-empty','진행 중인 작업이 없습니다. 그림을 만들면 여기에 진행 상황이 표시됩니다.'));
     const states={waiting:'대기 중',running:'생성 중',done:'완료',failed:'실패',cancelled:'취소됨'};
     for(const item of [...api.queue()].reverse()){const row=el('div','ap2-job'),chip=el('span','ap2-chip',states[item.state]??item.state);chip.dataset.state=item.state;row.append(el('strong','',item.label||'삽화'),chip);if(item.error)row.append(el('p','ap2-muted',item.error));page.append(row);}
@@ -315,7 +340,7 @@ export function studio(api,{page:first='home',host=null}={}){
         if(DEPENDS[id]){const s=api.settings();return JSON.stringify([DEPENDS[id].map(key=>s[key]),id==='image'?(s.presets??[]).map(p=>p.name):id==='display'?(s.customFrames??[]).map(f=>f.id):0]);}
         if(id==='characters')return `${api.contextKey()}`;
         if(id==='gallery')return `${api.contextKey()}|${api.chatImages().length}`;
-        if(id==='queue')return JSON.stringify([api.queue().map(item=>[item.state,item.label,item.error]),api.queuePaused(),api.usage(),api.settings().sessionLimit,api.pendingDrafts().length]);
+        if(id==='queue')return JSON.stringify([api.queue().map(item=>[item.state,item.label,item.error]),api.queuePaused(),api.usage(),api.pendingDrafts().length]);
         return '';
     };
     const outdated=(id,page)=>!!page.dataset.failed||page.dataset.stale==='true'||(page.dataset.dirty!=='true'&&page.dataset.signature!==signature(id));

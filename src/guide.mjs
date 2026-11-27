@@ -23,7 +23,6 @@ export const HELP={
     automatic:'주입이 켜져 있을 때 답변의 삽화 지시를 어떻게 처리할지 고릅니다. 자동 생성은 이미지 생성·삽입까지, 초안만은 장면 저장까지만 진행합니다.',
     promptInjection:'씬북 자동 처리의 켜기·끄기입니다. 켜면 내장 또는 사용자 수정 프롬프트를 대화 AI에 주입하고 답변의 삽화 지시를 처리합니다. 끄면 주입·자동 처리·대기 중인 자동 생성을 멈춥니다. 이미 전송된 이미지 요청은 완료될 수 있습니다.',
     every:'자동 처리할 답변 간격입니다. 1은 매 답변, 2는 첫 답변부터 하나 걸러 처리합니다. 중단한 답변·시작 안내·Quiet 요청은 세지 않습니다.',
-    sessionLimit:'이번 접속에서 허용할 이미지 요청 수입니다. 분석 호출 수나 계정 잔액을 뜻하지 않습니다.',
     budgetGuard:'1,048,576픽셀·28 Steps를 넘는 요청을 차단합니다. 구독 상태나 잔액을 판단하는 무료 생성 보장은 아닙니다.',
     transparent:'V5에서 알파 채널을 가진 이미지를 요청합니다.',
     placement:'기본값은 답변 아래입니다. 문단 뒤는 장면 편집에서 고른 문단 뒤에, AI가 고른 문단 뒤는 AI가 장면마다 고른 문단 뒤에 그림을 둡니다. 위치를 못 찾으면 답변 아래에 표시합니다.',
@@ -55,6 +54,8 @@ const extra=[
     ['삽화 지시 누락 방지','대화 본문과 삽화 지시를 모두 최종 답변에 작성하도록 주입 앞뒤에서 요구합니다. 이전 지시가 기록에서 숨겨졌어도 새 답변에는 새 지시가 필요하며, 생각 과정에서만 작성하면 안 된다고 알립니다. 자동 삽화가 켜진 모든 답변에 최소 한 장을 요구하고 빈 계획을 금지합니다. 새 동작이 없으면 확인된 주변 풍경을 사용하도록 지시합니다. 삽화가 필요 없으면 자동 삽화를 끄세요. 기존 사용자 지시문에도 강화된 출력 규칙을 덧붙이며 추가 AI 요청은 하지 않습니다.'],
     ['삽화 프롬프트 주입 위치','토큰 계산을 위해 깊이 0 · System으로 등록한 뒤, 채팅 완성 요청 조립이 끝나면 씬북 지시만 프리셋 뒤로 옮깁니다. 이어쓰기·답변 시작문이 있으면 그 바로 앞에 둡니다. 전체를 <image_generation> 태그로 감쌉니다. 텍스트 완성은 기존 깊이 0 위치를 유지하며 API 후처리가 역할을 변환할 수 있습니다.'],
     ['삽화 지시 자동 복구','JSON을 바로 읽지 못하면 브라우저에서 쉼표·따옴표·괄호·이스케이프 오류와 배열·숫자 타입을 복구합니다. 추가 AI 호출은 없으며 정상 문자열과 가중치는 보호합니다. 한 장면이 잘못돼도 나머지 정상 장면은 처리합니다. 작업 → 더 보기 → 지시 기록에서 복구 내역·제외 이유를 볼 수 있고, 과거 실패 지시도 장면 편집에서 다시 열 수 있습니다.'],
+    ['답변이 잘릴 때 (최대 응답 길이)','자동 삽화를 답변에 함께 쓰면 대화 AI가 답변 끝에 장면을 같이 적습니다. 그만큼 응답이 길어지니 최대 응답 길이를 40,000 토큰으로 두는 걸 권장합니다. 시작 탭의 자동 삽화 아래에 지금 값이 모자라면 안내와 40,000으로 설정 버튼이 나옵니다(채팅 완성 API). 컨텍스트 크기가 작으면 먼저 늘려야 합니다. 그래도 7천~8천 토큰 근처에서 잘리면 모델이나 프록시의 출력 상한, 생각(추론) 토큰, 검열 필터일 수 있습니다. 실리태번 검은 창의 종료 이유(length · max_tokens는 길이, SAFETY · PROHIBITED_CONTENT는 필터)를 확인하세요.'],
+    ['보조 모델로 장면 쓰기','시작 탭 → 자동 삽화 → 장면 쓰는 곳에서 답변 후 보조 모델을 고르면, 답변에는 삽화 지시를 넣지 않습니다. 답변이 오면 고른 연결 프로필(보조 모델)이 답변을 읽고 따로 장면을 쓴 뒤 그림을 그립니다. 답변 품질에 이미지 지시가 섞이는 게 싫거나 답변 토큰을 아끼고 싶을 때 씁니다. 연결 프로필은 실리태번 연결 관리자에서 만든 것 가운데 고르고, 비워 두면 지금 채팅 연결을 씁니다. 보조 모델 최대 응답 길이는 기본 16,000 토큰입니다. 답변마다 보조 모델 요청이 한 번 더 나갑니다(정밀 분석 모드면 두 번).'],
     ['설정 저장 · 복구','설정 입력은 바꾸는 즉시 저장됩니다. 저장 안 됨 메시지가 있으면 표시된 값을 고쳐 주세요. 업데이트가 저장된 프롬프트·모델·켜기/끄기 선택을 바꾸지 않습니다. 그림 설정 → 프리셋 · 백업의 이전 설정에서 변경 전 값을 복구할 수 있습니다(최대 10개).'],
     ['Vertex 연결','분석에 선택한 프로필의 모델·리전·프리셋·키를 함께 사용합니다. Express API 키와 Full 서비스 계정 JSON을 구분하며 키는 서버의 SillyTavern 저장소에서 읽습니다. 오류가 계속되면 확장과 서버 플러그인을 모두 업데이트하고 서버를 재시작하세요.'],
     ['진행 · 실패 알림','편집 창이 열려 있어도 SillyTavern 기본 알림을 사용하며, 설치한 테마의 모양과 위치를 따릅니다. 장면 분석 중과 삽화 생성 중에는 진행 알림이 유지됩니다. 완성되면 완료를, 실패하면 원인을 알립니다. 오류는 15초 동안 표시하며 작업 탭에서도 확인할 수 있습니다. 실패한 유료 요청을 자동 재시도하지 않습니다.'],
@@ -85,7 +86,7 @@ export function showGuide(){
     const render=()=>{step.replaceChildren(el('h3','',steps[index][0]),el('p','',steps[index][1]));count.textContent=`${index+1} / ${steps.length}`;back.disabled=index===0;next.disabled=index===steps.length-1;};
     render();body.append(step,navigation);
     const search=field('기능 찾기','',{type:'search',placeholder:'예: 참조, 시드, 배치, 프롬프트'}),list=el('div','ap2-guide-topics');body.append(search.wrap,list);
-    const labels={model:'모델',width:'가로',height:'세로',steps:'Steps',scale:'Guidance',seed:'시드 Seed',sampler:'샘플러',scheduler:'스케줄러',cfgRescale:'CFG rescale',quality:'품질 태그',useCoords:'좌표 적용',useOrder:'인물 순서',profileId:'연결 프로필',analysisMode:'분석 방식',maxScenes:'최대 장면',contextMessages:'이전 메시지',style:'메인 프롬프트',negative:'제외할 요소 (UC)',analysisPrompt:'장면 분석 프롬프트',automatic:'자동 처리',promptInjection:'자동 삽화',every:'답변 간격',sessionLimit:'접속당 요청 한도',budgetGuard:'비용 보호',transparent:'투명 배경',placement:'삽입 위치',displayWidth:'최대 너비',compact:'작게 표시',playerMode:'플레이어'};
+    const labels={model:'모델',width:'가로',height:'세로',steps:'Steps',scale:'Guidance',seed:'시드 Seed',sampler:'샘플러',scheduler:'스케줄러',cfgRescale:'CFG rescale',quality:'품질 태그',useCoords:'좌표 적용',useOrder:'인물 순서',profileId:'연결 프로필',analysisMode:'분석 방식',maxScenes:'최대 장면',contextMessages:'이전 메시지',style:'메인 프롬프트',negative:'제외할 요소 (UC)',analysisPrompt:'장면 분석 프롬프트',automatic:'자동 처리',promptInjection:'자동 삽화',every:'답변 간격',budgetGuard:'비용 보호',transparent:'투명 배경',placement:'삽입 위치',displayWidth:'최대 너비',compact:'작게 표시',playerMode:'플레이어'};
     const topics=[...extra,...Object.entries(HELP).map(([k,v])=>[labels[k],v])];
     const filter=()=>{list.replaceChildren();const query=search.read().trim().toLowerCase();for(const [title,description]of topics){if(query&&!`${title} ${description}`.toLowerCase().includes(query))continue;const d=el('details','ap2-guide-topic');d.open=!!query;d.append(el('summary','',title),el('p','',description));list.append(d);}if(!list.children.length)list.append(el('p','ap2-muted','일치하는 설명이 없습니다.'));};search.input.addEventListener('input',filter);filter();
 }
