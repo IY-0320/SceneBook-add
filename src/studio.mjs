@@ -182,19 +182,19 @@ function imagePage(page,{api,open}){
     let lastFormat=format;
     function syncPage(){
         const v5=String(fields.model?.input.value??c.model).startsWith('nai-diffusion-5-');
-        // Without V5 only one picture or several cuts can be drawn.
-        if(!v5&&!['single','cuts'].includes(format)){format='single';formatChoice.set('single');}
-        for(const option of formatChoice.wrap.children)option.disabled=!v5&&!['single','cuts'].includes(option.dataset.value);
+        // Without V5 only ordinary pictures can be drawn: cuts and pages hold panels.
+        if(!v5&&format!=='single'){format='single';formatChoice.set('single');}
+        for(const option of formatChoice.wrap.children)option.disabled=!v5&&option.dataset.value!=='single';
         const cuts=format==='cuts',pageMode=!['single','cuts'].includes(format);
         // Cuts of one picture make no episode: choosing cuts starts from four.
         if(cuts&&lastFormat!=='cuts'&&scenes<2){scenes=4;scenesChoice.set('4');}
         lastFormat=format;
-        for(const option of scenesChoice.wrap.children)option.textContent=`${option.dataset.value}${cuts?'컷':'장'}`;
-        scenesLabel.textContent=cuts?'최대 컷':pageMode?'최대 페이지':'최대 장 수';
+
+        scenesLabel.textContent=pageMode?'최대 페이지':'최대 장 수';
         scenesRow.title='AI가 그릴 만한 순간만 골라 이 수 안에서 그립니다. 짧거나 조용한 답변은 한 장만 그릴 수 있습니다.';
-        countRow.hidden=!pageMode;layoutRow.hidden=!cuts;bubbles.closest('.ap2-field').hidden=!pageMode;
+        countRow.hidden=!(pageMode||cuts);layoutRow.hidden=!cuts;bubbles.closest('.ap2-field').hidden=!(pageMode||cuts);
         const about=PAGE_FORMATS.find(([id])=>id===format)?.[2]??'';
-        pageHelp.textContent=!v5&&!cuts&&format==='single'?`${about} 만화 페이지(흑백 · 컬러 · 세로 웹툰)는 V5 모델에서만 그립니다.`:about;
+        pageHelp.textContent=!v5?`${about} 웹툰 컷과 만화 페이지는 V5 모델에서만 그립니다.`:about;
     }
     const sampling=section(page,'품질','기본값 그대로 써도 됩니다.'),grid=el('div','ap2-grid');sampling.append(grid);
     addField(grid,fields,'steps','Steps',c.steps,{type:'number',min:1,max:50,step:1});

@@ -5,7 +5,7 @@ import { MODELS } from '../plugin/core.mjs';
 // so the mode is offered and applied on V5 alone.
 export const PAGE_FORMATS=[
     ['single','삽화','보통 삽화입니다. 그릴 만한 순간마다 한 장씩, 최대 장 수 안에서 AI가 골라 그립니다. 액자와 그림 위치는 표시 탭 설정을 따릅니다.'],
-    ['cuts','웹툰 컷','답변을 웹툰 컷처럼 이어지는 여러 장으로 그립니다. 컷마다 거리 · 각도 · 화면 비율을 바꾸고 액자 없이 이어 보여 줍니다. 모든 모델에서 됩니다.'],
+    ['cuts','웹툰 컷','그릴 만한 장면마다 여러 칸이 든 세로 웹툰 한 장을 그려, 문단마다 또는 답변 아래에 이어 보여 줍니다. 장 수는 최대 장 수 안에서 AI가 정합니다.'],
     ['manga','흑백 만화','먹선과 검은 그림자의 흑백 만화 페이지로 그립니다.'],
     ['comic','컬러 만화','칸이 나뉜 컬러 만화 페이지로 그립니다.'],
     ['webtoon','세로 웹툰','위에서 아래로 이어지는 세로 웹툰 칸으로 그립니다.'],
@@ -18,12 +18,13 @@ export const CUT_LAYOUTS=[['story','문단마다'],['stack','답변 아래 이�
 const PAGE_KINDS=['manga','comic','webtoon'];
 const WORDS=['','one','two','three','four','five','six'],ORDER=['First','Second','Third','Fourth','Fifth','Sixth'];
 export const pagesAllowed=config=>MODELS[config.model]?.family===5;
-export const pageFormat=config=>pagesAllowed(config)&&PAGE_KINDS.includes(config.pageFormat)?config.pageFormat:'single';
+// Webtoon cuts are drawn as webtoon strips, so they are a page format too.
+export const pageFormat=config=>!pagesAllowed(config)?'single':config.pageFormat==='cuts'?'webtoon':PAGE_KINDS.includes(config.pageFormat)?config.pageFormat:'single';
 const pagePanels=config=>config.panelCount>=2?Math.min(4,config.panelCount):0;
 
-// Cuts: one reply drawn as several separate pictures, shown one under another
-// like a webtoon episode. Each picture is an ordinary scene, so any model draws it.
-export const cutMode=config=>config?.pageFormat==='cuts';
+// Webtoon cuts: one reply drawn as a few webtoon strips, each holding several
+// panels, shown after their paragraphs or one under another. Strips need V5.
+export const cutMode=config=>config?.pageFormat==='cuts'&&pagesAllowed(config);
 export const cutLimit=config=>Math.max(1,Math.min(6,Number(config.maxScenes)||1));
 // While cuts are chosen placement follows the cut layout; otherwise it returns to the saved setting.
 export function withCuts(config){
@@ -31,15 +32,14 @@ export function withCuts(config){
     if(!cutMode(config))return config.basePlacement===undefined?config:{...config,placement};
     return{...config,basePlacement:placement,placement:config.cutLayout==='stack'?'end':'auto'};
 }
-function cutRules(config,format){
+// How many strips and which stretches of the reply they cover. The page rules for
+// a vertical webtoon strip follow and decide the panels inside each strip.
+function cutRules(config){
     const max=cutLimit(config);
-    const size=format==='json'||format==='analysis'?'"size"':'the size line';
-    return `CUT MODE (webtoon cuts): draw this reply as a short run of separate pictures, read from top to bottom like a webtoon episode; each scene is one cut. This replaces any earlier advice on how many scenes to write.
-How many: as many cuts as the reply needs and no more, between 1 and ${max}. Give a cut only to a moment worth seeing: a new place or arrival, a decisive action, a strong reaction, a turn in the story. Leave out paragraphs of talk, thought, explanation or repetition that add nothing new to see. A short or quiet reply needs one cut; never pad to reach ${max}.
-Beats: put the cuts in story order. When the place is new, the first cut shows it and who is there. Never spend two cuts on the same instant.
-Shots: give consecutive cuts a different shot distance or angle (establishing wide shot, medium shot, close-up, extreme close-up of eyes, a hand or an object, over the shoulder, high angle, low angle). A quiet beat can be a close-up of a detail without a face. Use ${size} to shape each cut: landscape for places and sideways movement, portrait for full bodies and vertical action, square for faces and small details.
-Continuity: keep outfit, hair, light, weather and place the same from cut to cut unless the story changes them, and keep each person on the same side of the frame. Every cut repeats the full visible description, because each picture is drawn on its own.
-No speech bubbles, captions, sound effects or other text.`;
+    return `EPISODE MODE: draw this reply as a short run of vertical webtoon strips, read from top to bottom like a webtoon episode; each scene is one strip of several panels. This replaces any earlier advice on how many scenes to write.
+How many: as many strips as the reply needs and no more, between 1 and ${max}. Give a strip only to a stretch worth seeing: a new place or arrival, a decisive action, a strong reaction, a turn in the story. Leave out paragraphs of talk, thought, explanation or repetition that add nothing new to see. A short or quiet reply needs one strip; never pad to reach ${max}.
+Order: strips follow the story; the panels of a strip follow its stretch moment by moment. Never draw an instant twice.
+Continuity: keep outfit, hair, light, weather and place the same from strip to strip unless the story changes them, and keep each person on the same side of the frame.`;
 }
 
 // How each format opens the prompt. The page format comes first: NovelAI
@@ -103,8 +103,8 @@ const toPage=(c,box)=>({x:+Math.min(.98,Math.max(.02,box.x0+(c.x??.5)*(box.x1-bo
 
 // Rules for the model that writes the plan. `format` is the plan format: text, json or analysis.
 export function pageRules(config,format='text'){
-    if(cutMode(config))return cutRules(config,format);
     const kind=pageFormat(config);if(kind==='single')return'';
+    if(cutMode(config))return`${cutRules(config)}\n${pageRules({...config,pageFormat:'webtoon'},format)}`;
     const label={manga:'black and white manga page',comic:'full color comic page',webtoon:'vertical webtoon strip'}[kind];
     const fixed=pagePanels(config),counts=fixed?[fixed]:[2,3,4],count=fixed?`exactly ${fixed}`:'2 to 4';
     const bubbles=config.speechBubbles?'A speaker\'s bubble may carry one short line from the reply in its original language: put "speech bubble, text: <line>" in that character\'s action for that panel. Never add other text.':'No speech bubbles, captions, sound effects, numbers or other text anywhere.';

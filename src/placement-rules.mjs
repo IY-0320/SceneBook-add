@@ -2,9 +2,9 @@
 // wording, by placement mode and by the plan format the model writes.
 import { cutMode, cutLimit } from './comic.mjs';
 const AUTO_COUNT=max=>`When the reply has several clearly different visual moments, write one scene for each, up to ${max}, in reading order; when it has one, write one.`;
-const CUT_ORDER='Write the cuts in story order, each after the paragraph it depicts; paragraphs with nothing new to see get no cut.';
+const CUT_ORDER='Write the strips in story order, each after the paragraph it depicts; paragraphs with nothing new to see get no strip.';
 export function sceneCount(config){
-    if(cutMode(config))return`Scene count: 1 to ${cutLimit(config)} cuts, only as many as the reply needs.`;
+    if(cutMode(config))return`Scene count: 1 to ${cutLimit(config)} strips, only as many as the reply needs.`;
     return config.placement==='auto'?`Scene count: 1 to ${config.maxScenes}, one per clearly different moment.`:`Scene count: normally 1, at most ${config.maxScenes}.`;
 }
 // format: text (key: value lines), json, analysis (the separate scene-writing request), lean.

@@ -363,7 +363,7 @@ async function manualGenerate(target,mode,text='',size='',format=''){
         scenes=[{title:'',prompt:text,camera:'',negative:'',after:target.snapshot.blocks.at(-1).index,evidence:'',characters:[]}];
     }else{
         // A format picked here applies to this reply only.
-        if(format&&(pagesAllowed(target.config)||['single','cuts'].includes(format)))target.config=withCuts({...target.config,pageFormat:format});
+        if(format&&(pagesAllowed(target.config)||format==='single'))target.config=withCuts({...target.config,pageFormat:format});
         scenes=await analyze(target,[],text);
         if(!scenes.length)throw new Error('AI가 이 답변에서 그릴 장면을 찾지 못했습니다. 요청 사항을 적거나 직접 쓰기로 만들어 보세요.');
     }
@@ -375,7 +375,7 @@ async function manualGenerate(target,mode,text='',size='',format=''){
 function openManual(index=lastIndex()){
     const target=capture(index);
     manualDialog({excerpt:target.snapshot.source.replace(/<!--[\s\S]*?-->/g,'').trim().slice(0,240),hasPlan:!!storedScenes(target),
-        pages:{value:cutMode(target.config)?'cuts':pageFormat(target.config),formats:PAGE_FORMATS.filter(([id])=>pagesAllowed(target.config)||['single','cuts'].includes(id))},
+        pages:{value:cutMode(target.config)?'cuts':pageFormat(target.config),formats:PAGE_FORMATS.filter(([id])=>pagesAllowed(target.config)||id==='single')},
         onGenerate:({mode,text,size,format})=>manualGenerate(target,mode,text,size,format),
         onEdit:()=>{if(!current(target))throw new Error('대상 답변이 바뀌었습니다. 다시 열어 주세요.');return compose(context().chat.indexOf(target.message));}});
 }
