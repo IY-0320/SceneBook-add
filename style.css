@@ -323,14 +323,21 @@ details.ap2-group[open] { padding-bottom: 12px; }
 .ap2-figure:hover .ap2-image-actions, .ap2-figure:focus-within .ap2-image-actions { opacity: 1; }
 .ap2-figure .ap2-image-actions .ap2-button { width: 34px; min-height: 34px; padding: 0; border-radius: 50%; background: #000000a6; color: #fff; backdrop-filter: blur(8px); }
 .ap2-figure .ap2-image-actions .ap2-button:hover { background: #000000d9; }
+/* SillyTavern tints every <i> in a reply with the italic colour; icons keep their button's colour. */
+.ap2-figure .ap2-button > i { color: inherit; font-style: normal; }
+.ap2-figure .ap2-image-actions .ap2-button > i { opacity: 1; }
 /* Touch screens have no hover: keep the two buttons visible, small and translucent. */
 @media (hover: none) { .ap2-image-actions { opacity: 1; } .ap2-figure .ap2-image-actions .ap2-button { width: 34px; min-height: 34px; background: #00000080; } }
-/* Buttons that wait for a first tap on touch screens. */
-@media (hover: none) { .ap2-figure[data-touch=tap] .ap2-image-actions { opacity: 0; pointer-events: none; transition: opacity .15s; } .ap2-figure[data-touch=tap].ap2-show-tools .ap2-image-actions { opacity: 1; pointer-events: auto; } }
-.ap2-image-navigation { display: flex; justify-content: flex-end; align-items: center; gap: 0; margin-top: 2px; color: var(--ap2-muted); }
-.ap2-figure .ap2-image-navigation .ap2-button { width: 30px; min-height: 28px; padding: 0; border-radius: 8px; background: none; color: inherit; font-size: .7em; }
-.ap2-figure .ap2-image-navigation .ap2-button:hover { background: var(--ap2-1); color: var(--ap2-fg); }
-.ap2-version-count { min-width: 26px; text-align: center; font-size: .74em; font-variant-numeric: tabular-nums; }
+/* By default they wait for a first tap on touch screens. */
+@media (hover: none) { .ap2-figure[data-touch=tap] .ap2-image-actions { opacity: 0; pointer-events: none; transition: opacity .15s; } }
+.ap2-figure[data-touch=tap].ap2-show-tools .ap2-image-actions { opacity: 1; pointer-events: auto; }
+.ap2-image-navigation { display: flex; justify-content: flex-end; align-items: center; gap: 0; margin-top: 3px; color: var(--ap2-muted); }
+/* Version arrows: a bare thin line, no box. Themes that outline buttons are kept off. */
+.ap2-figure .ap2-image-navigation button.ap2-button { width: 22px; min-height: 24px; padding: 0; border: 0 !important; border-radius: 4px; background: transparent !important; box-shadow: none !important; color: inherit; opacity: .7; transition: opacity .12s, color .12s; }
+.ap2-figure .ap2-image-navigation button.ap2-button:active { opacity: 1; color: var(--ap2-fg); }
+@media (hover: hover) { .ap2-figure .ap2-image-navigation button.ap2-button:hover { opacity: 1; color: var(--ap2-fg); } }
+.ap2-chevron { flex: none; width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
+.ap2-version-count { min-width: 2em; text-align: center; font-size: .72em; letter-spacing: .02em; font-variant-numeric: tabular-nums; }
 
 /* Character placement board. */
 .ap2-placement { margin: 10px 0; }
@@ -458,7 +465,8 @@ details.ap2-group[open] { padding-bottom: 12px; }
     #ap2-settings, .ap2-dialog, .ap2-figure, .ap2-action-panel { --ap2-h: 40px; }
     .ap2-group > summary, .ap2-character > summary, .ap2-guide-topic > summary { min-height: 50px; }
     .ap2-chip-button { min-height: 38px; }
-    .ap2-figure .ap2-image-navigation .ap2-button { width: 36px; min-height: 32px; }
+    /* A wider touch target; the arrow itself stays small. */
+    .ap2-figure .ap2-image-navigation button.ap2-button { width: 26px; min-height: 32px; }
 }
 @media (max-width: 650px) {
     /* Dialogs fill the screen; small prompts and menus rise from the bottom. */

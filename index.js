@@ -25,7 +25,7 @@ import { sceneLabel, sceneHint, withoutTitle } from './src/scene-label.mjs';
 import { bucketFromPadded } from './src/images.mjs';
 import { studio, mountSettings } from './src/studio.mjs';
 import { timelineInstruction,validateTimeline,resolveAt } from './src/timeline.mjs';
-import { el, button, notice, composer, inspect, modal, compareVersions, confirmAction, syncTone } from './src/ui.mjs';
+import { el, button, chevron, notice, composer, inspect, modal, compareVersions, confirmAction, syncTone } from './src/ui.mjs';
 import { openViewer } from './src/viewer.mjs';
 import { activePreset, inPresetStyle } from './src/presets.mjs';
 import { readAnalysisReply, analysisLength } from './src/analysis-reply.mjs';
@@ -53,7 +53,7 @@ function cleanSettings(value) {
     for (const [key,min,max] of [['maxScenes',1,6],['every',1,20],['sessionLimit',1,100],['contextMessages',0,30],['displayWidth',240,1200]]) number(c[key],min,max,key,true);
     for (const key of ['quality','compact','budgetGuard','transparent','promptInjection','leanPrompt','autoSize']) if(typeof c[key]!=='boolean')throw new Error(`${key}: 켜기/끄기 값이 필요합니다.`);
     if(c.analysisLength!==0)number(c.analysisLength,1000,128000,'분석 답 길이',true);
-    if(!['always','tap'].includes(c.touchTools))c.touchTools='always';
+    if(!['tap','always'].includes(c.imageTools))c.imageTools='tap';
     if(!PAGE_FORMATS.some(([id])=>id===c.pageFormat))c.pageFormat='single';
     if(![0,2,3,4].includes(c.panelCount))c.panelCount=0;
     c.speechBubbles=c.speechBubbles===true;
@@ -469,7 +469,7 @@ function renderMessage(index) {
         }
     }
     const state=m.extra?.[KEY]?.views?.[sourceKey(m.mes,m.swipe_id??0)],config=settings();
-    const signature=JSON.stringify([index,m.mes,m.swipe_id,state,config.compact,config.displayWidth,config.placement,config.touchTools,config.frame,config.frameWide,config.frameInk,config.customFrames?.length]);
+    const signature=JSON.stringify([index,m.mes,m.swipe_id,state,config.compact,config.displayWidth,config.placement,config.imageTools,config.frame,config.frameWide,config.frameInk,config.customFrames?.length]);
     const previous=rendered.get(content);
     if(previous?.signature===signature&&previous.nodes.every(n=>n.isConnected))return;
     block.querySelectorAll('.ap2-tools,.ap2-figure').forEach(x=>x.remove());
@@ -487,25 +487,24 @@ function renderMessage(index) {
         const image=el('img');image.src=job.url;image.alt=sceneLabel(job.scene)||'삽화';image.loading='lazy';image.width=job.config.width;image.height=job.config.height;
         const imageWrap=el('div','ap2-image-wrap'),overlay=el('div','ap2-image-actions');
         overlay.setAttribute('aria-label','삽화 도구');
-        // On touch screens the buttons can wait for a first tap; the second tap opens the picture.
-        figure.dataset.touch=config.touchTools;
+        // On touch screens the buttons wait for a first tap; a second tap opens the picture.
+        figure.dataset.touch=config.imageTools;let pointer='';
         const open=button('',()=>{
-            if(config.touchTools==='tap'&&matchMedia('(hover: none)').matches&&!figure.classList.contains('ap2-show-tools')){
-                figure.classList.add('ap2-show-tools');clearTimeout(Number(figure.dataset.toolsTimer));figure.dataset.toolsTimer=String(setTimeout(()=>figure.classList.remove('ap2-show-tools'),3000));return;
-            }
-            return openIllustration(index,slot);
-        });open.className='ap2-image-open';open.setAttribute('aria-label',`${sceneLabel(job.scene)||'삽화'} · 이미지 보기`);open.replaceChildren(image);
+            const touch=pointer?pointer!=='mouse':matchMedia('(hover: none)').matches;pointer='';
+            if(config.imageTools==='tap'&&touch&&!figure.classList.contains('ap2-show-tools')){revealTools(figure);return;}
+            toolsShown.get(figure)?.();return openIllustration(index,slot);
+        });open.className='ap2-image-open';open.addEventListener('pointerdown',event=>{pointer=event.pointerType;});open.setAttribute('aria-label',`${sceneLabel(job.scene)||'삽화'} · 이미지 보기`);open.replaceChildren(image);
         const targetForImage=()=>{const target=capture(index);if(!viewState(target,false)?.slots.includes(slot)||slot.deleted)throw new Error('대상 답변이 바뀌었습니다.');return target;};
         for(const [label,icon,action]of [
             ['수정','fa-pen',()=>{targetForImage();return openQuickEdit(index,slot);}],
             ['재생성','fa-rotate-right',()=>enqueue(targetForImage(),[job.scene],slot.id,restyled(job))],
-        ]){const b=button('',action,false,icon);b.title=label==='재생성'?'같은 프롬프트, 새 시드로 다시 그리기':'프롬프트를 고쳐서 다시 그리기';b.setAttribute('aria-label',label);overlay.append(b);}
+        ]){const b=button('',()=>{toolsShown.get(figure)?.();return action();},false,icon);b.title=label==='재생성'?'같은 프롬프트, 새 시드로 다시 그리기':'프롬프트를 고쳐서 다시 그리기';b.setAttribute('aria-label',label);overlay.append(b);}
         imageWrap.append(open,overlay);figure.append(imageWrap);applyFrame(figure,imageWrap,open,job.config.width,job.config.height,config);
         if(slot.versions.length>1){
             const change=delta=>{targetForImage();chooseVersion(index,slot,slot.selected+delta);};
             const navigation=el('div','ap2-image-navigation');navigation.setAttribute('role','group');navigation.setAttribute('aria-label','삽화 버전 전환');
-            const back=button('',()=>change(-1),false,'fa-chevron-left'),next=button('',()=>change(1),false,'fa-chevron-right');
-            for(const [b,label]of [[back,'이전 그림'],[next,'다음 그림']]){b.classList.remove('menu_button','menu_button_icon');b.setAttribute('aria-label',label);b.title=label;}
+            const back=button('',()=>change(-1)),next=button('',()=>change(1));
+            for(const [b,label,side]of [[back,'이전 그림','left'],[next,'다음 그림','right']]){b.prepend(chevron(side));b.setAttribute('aria-label',label);b.title=label;}
             navigation.append(back,el('span','ap2-version-count',`${slot.selected+1}/${slot.versions.length}`),next);
             figure.append(navigation);
         }
@@ -513,6 +512,15 @@ function renderMessage(index) {
         if(anchor){(inlineTails.get(anchor)??anchor).after(figure);inlineTails.set(anchor,figure);}else content.append(figure);
         nodes.push(figure);
     }
+}
+// The buttons over a picture after a first tap: they stay until a tap elsewhere or a few seconds pass.
+const toolsShown=new WeakMap();
+function revealTools(figure){
+    toolsShown.get(figure)?.();
+    const outside=event=>{if(!figure.contains(event.target))hide();};
+    const hide=()=>{clearTimeout(timer);document.removeEventListener('pointerdown',outside,true);figure.classList.remove('ap2-show-tools');toolsShown.delete(figure);};
+    const timer=setTimeout(hide,5000);
+    document.addEventListener('pointerdown',outside,true);figure.classList.add('ap2-show-tools');toolsShown.set(figure,hide);
 }
 function scheduleRender() {syncTone();clearTimeout(renderTimer);renderTimer=setTimeout(()=>{document.querySelectorAll('#chat .mes[mesid]').forEach(n=>renderMessage(Number(n.getAttribute('mesid'))));},80);}
 let activeIllustrationPrompt = '';

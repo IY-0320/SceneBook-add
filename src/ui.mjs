@@ -24,6 +24,12 @@ export function button(label, action, primary = false, icon = '') {
         try { const result=action();if(result?.then){b.disabled=true;try{await result;}finally{b.disabled=false;}} } catch (e) { notice(e.message, true); }
     }); return b;
 }
+// A thin line chevron, drawn rather than taken from the icon font so it stays light at small sizes.
+export function chevron(side='right'){
+    const ns='http://www.w3.org/2000/svg',svg=document.createElementNS(ns,'svg'),path=document.createElementNS(ns,'path');
+    svg.setAttribute('viewBox','0 0 16 16');svg.setAttribute('class','ap2-chevron');svg.setAttribute('aria-hidden','true');
+    path.setAttribute('d',side==='left'?'M10 3.5 5.5 8l4.5 4.5':'M6 3.5 10.5 8 6 12.5');svg.append(path);return svg;
+}
 export function iconButton(label, icon, action) {
     const b=button('',action,false,icon);b.classList.add('ap2-icon-button');
     b.title=label;b.setAttribute('aria-label',label);return b;

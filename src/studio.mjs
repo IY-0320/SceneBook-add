@@ -223,7 +223,7 @@ function displayPage(page,{api}){
     addField(place,fields,'placement','그림 위치',c.placement,{choices:[['end','답변 아래'],['inline','문단 뒤'],['auto','AI가 고른 문단 뒤']]});
     addField(place,fields,'displayWidth','최대 너비 (픽셀)',c.displayWidth,{type:'number',min:240,max:1200,step:1});
     addField(place,fields,'compact','작게 표시',c.compact,{type:'checkbox'});
-    addField(place,fields,'touchTools','터치 화면의 그림 위 버튼',c.touchTools,{choices:[['always','항상 보이기'],['tap','그림을 한 번 눌렀을 때']],help:'한 번 눌렀을 때: 그림을 한 번 누르면 수정·재생성 버튼이 잠깐 보이고, 한 번 더 누르면 크게 봅니다.'});
+    addField(place,fields,'imageTools','터치 화면의 그림 위 버튼',c.imageTools,{choices:[['tap','한 번 누르면 보이기'],['always','항상 보이기']],help:'한 번 누르면 보이기: 처음엔 그림만 보이고, 한 번 누르면 수정·재생성 버튼이 나타나며 한 번 더 누르면 크게 봅니다. 마우스로는 그림 위에 올리면 보입니다.'});
     const frameBox=section(page,'삽화 액자');
     // Each tile draws its frame with the same code the chat uses.
     let frame=c.frame,frameWide=c.frameWide??'';const frames=el('div','ap2-frame-picker');frames.setAttribute('role','radiogroup');frames.setAttribute('aria-label','삽화 액자');
@@ -288,7 +288,7 @@ export function studio(api,{page:first='home',host=null}={}){
     // What a page was built from. A page is rebuilt only when this no longer matches.
     const DEPENDS={prompt:['look','style','negative','quality','leanPrompt','analysisPrompt','injectionPrompt','model'],
         image:['model','width','height','autoSize','steps','scale','budgetGuard','sampler','scheduler','seed','cfgRescale','useCoords','useOrder','transparent','profileId','analysisMode','contextMessages','analysisLength','pageFormat','panelCount','speechBubbles','style','negative','look','quality','references'],
-        display:['placement','displayWidth','compact','touchTools','frame','frameWide','frameInk'],references:['model','references']};
+        display:['placement','displayWidth','compact','imageTools','frame','frameWide','frameInk'],references:['model','references']};
     const signature=id=>{
         if(DEPENDS[id]){const s=api.settings();return JSON.stringify([DEPENDS[id].map(key=>s[key]),id==='image'?(s.presets??[]).map(p=>p.name):id==='display'?(s.customFrames??[]).map(f=>f.id):0]);}
         if(id==='characters')return `${api.contextKey()}`;
