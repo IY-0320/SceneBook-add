@@ -1,6 +1,6 @@
 # 씬북+ (SceneBook-add)
 
-이 저장소에서 작업을 이어갈 때는 먼저 `notes/HANDOFF.md`를 읽으세요.
+이 저장소에서 작업을 이어갈 때는 먼저 `notes/SCENEBOOK-PLUS.md`를 읽으세요.
 프로젝트 구조, 지금까지의 결정, 겪은 문제와 교훈, 실제 SillyTavern으로 테스트하는 방법,
 깡통 소개 글(`notes/post/`)과 글꾸 규칙(`notes/kkangtong-rules.md`)이 정리되어 있습니다.
 
