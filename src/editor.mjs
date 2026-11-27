@@ -74,9 +74,12 @@ export function composer({context,scenes,config,onAnalyze,onGenerate,onDraft,pre
             kind.input.addEventListener('change',()=>{snapshot();if(kind.read()==='single'){delete scene().page;delete scene().pageFormat;}else scene().pageFormat=kind.read();renderContent();});
             const layout=field('칸 배치',page.layout,{multiline:true,rows:2,placeholder:'예: top panel largest spanning the full width, two equal panels below'});layout.input.addEventListener('input',()=>{page.layout=layout.read();});
             pageBox.append(kind.wrap,layout.wrap);
+            // Each panel, then the people in it: the same person is written again for every panel.
             page.panels.forEach((panel,i)=>{
-                const names=panel.characters.map(c=>c.name).filter(Boolean).join(' · ');
-                const f=field(`${i+1}번째 칸${names?` · ${names}`:''}`,panel.text,{multiline:true,rows:3});f.input.addEventListener('input',()=>{panel.text=f.read();});pageBox.append(f.wrap);
+                const group=el('section','ap2-quick-panel'),f=bare(field(`${i+1}번째 칸`,panel.text,{multiline:true,rows:3}));f.input.addEventListener('input',()=>{panel.text=f.read();});
+                group.append(el('h4','',`${i+1}번째 칸`),f.wrap);
+                for(const c of panel.characters??[]){const g=field(c.name||'인물',c.prompt??'',{multiline:true,rows:2});g.input.addEventListener('input',()=>{c.prompt=g.read();});group.append(g.wrap);}
+                pageBox.append(group);
             });
         }
         const cameraBox=part(sceneSide,page?'화면 비율':'구도 · 화면 비율');
@@ -93,7 +96,7 @@ export function composer({context,scenes,config,onAnalyze,onGenerate,onDraft,pre
         instructions.append(button('재분석',async()=>{const before=JSON.stringify(drafts);status.textContent='장면 분석 중…';try{const result=await onAnalyze(structuredClone(drafts),direction.read(),scope.read());if(JSON.stringify(drafts)!==before)throw new Error('분석 중 편집한 내용이 있어 결과로 덮어쓰지 않았습니다.');snapshot();drafts=result;render();status.textContent='분석 완료 · 변경 내용을 확인하세요.';}catch(e){status.textContent='분석 실패 · 기존 편집 내용을 유지했습니다.';throw e;}}));(exact?sceneSide:commonSide).append(instructions);
     }
     function renderCast(){
-        if(scene().page){content.append(el('p','ap2-empty','만화 페이지는 칸마다 인물과 위치가 따로 있습니다. 칸 내용은 장면 · 프롬프트 탭에서 고칩니다.'));return;}
+        if(scene().page){content.append(el('p','ap2-empty','만화 페이지는 칸마다 인물과 위치가 따로 있습니다. 칸 내용과 칸마다의 인물은 장면 · 프롬프트 탭의 만화 페이지에서 고칩니다.'));return;}
         const cast=scene().characters??=[];person=Math.max(0,Math.min(person,cast.length-1));
         const layout=el('div','ap2-cast-layout'),visual=el('div','ap2-cast-visual'),editor=el('div','ap2-cast-editor'),list=el('div','ap2-cast-list'),fieldsArea=el('div','ap2-cast-fields');layout.append(visual,editor);editor.append(list,fieldsArea);content.append(layout);
         const coords=field('좌표 적용',config.useCoords,{type:'checkbox'}),order=field('인물 순서 적용',config.useOrder,{type:'checkbox'});let currentFields={};

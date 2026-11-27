@@ -1,4 +1,4 @@
-export const CLIENT_VERSION='0.5.5';
+export const CLIENT_VERSION='0.5.6';
 // True when the running server plugin is at least the given version.
 export function serverAtLeast(version,major,minor,patch=0){
     const m=String(version??'').match(/^(\d+)\.(\d+)\.(\d+)/);if(!m)return false;

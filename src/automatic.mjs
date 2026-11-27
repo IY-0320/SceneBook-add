@@ -43,7 +43,12 @@ export class AutomaticResponses {
         if(!this.waitForRender||finalized)this.schedule();
     }
     reset() { this.active = null; this.pending = []; this.seen = []; this.observed=new WeakMap(); }
-    schedule() { clearTimeout(this.timer); this.timer = setTimeout(() => void this.drain(), 0); }
+    // Runs after the current event handlers. A background tab may hold timers until it is
+    // shown again, so there the work starts from a microtask instead; drain() runs once either way.
+    schedule() {
+        clearTimeout(this.timer); this.timer = setTimeout(() => void this.drain(), 0);
+        if (globalThis.document?.hidden) queueMicrotask(() => void this.drain());
+    }
     async drain() {
         if (this.running || (this.active && !this.active.ended && !this.active.stopped)) return;
         this.running = true;

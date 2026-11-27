@@ -25,7 +25,9 @@ export async function galleryPage(page,{api,open,isCurrent,forced}) {
     if(scope!==api.contextKey()){count.textContent='채팅이 바뀌었습니다. 새로고침을 눌러 주세요.';return;}
     // Retain older images saved with this chat, even beyond the server's recent
     // 100-record window. Deduplicate regenerated images by their stable job ID.
-    let jobs=[...new Map([...chatJobs,...recent].map(job=>[job.id,job])).values()].sort((a,b)=>new Date(b.created)-new Date(a.created));
+    // The chat's copy adds what only the client knows, such as the preset and a page's panels.
+    const byId=new Map(recent.map(job=>[job.id,job]));for(const job of chatJobs)byId.set(job.id,{...byId.get(job.id),...job});
+    let jobs=[...byId.values()].sort((a,b)=>new Date(b.created)-new Date(a.created));
     let pageIndex=0,selecting=false,matches=[];const size=24,chosen=new Set();
     const previous=iconButton('이전 페이지','fa-chevron-left',()=>{pageIndex--;render();}),next=iconButton('다음 페이지','fa-chevron-right',()=>{pageIndex++;render();}),pageNumber=el('span','ap2-muted');pager.append(previous,pageNumber,next);
     const ready=job=>job.status==='done'&&api.isImage(job.url);
@@ -93,7 +95,7 @@ export async function galleryPage(page,{api,open,isCurrent,forced}) {
         const shown=matches.filter(ready);
         const view=openViewer({items:shown,index:Math.max(0,shown.indexOf(job)),describe:item=>({actions:[
             {label:'삽입',icon:'fa-plus',close:true,run:()=>{ensureScope();return api.recover(item);}},
-            {label:'편집',icon:'fa-sliders',close:true,run:()=>{ensureScope();return api.importScene(item.scene,item.config);}},
+            {label:'편집',icon:'fa-sliders',close:true,run:()=>{ensureScope();return api.importScene(item.pageScene??item.scene,item.config);}},
         ],more:[
             {label:'AI 검수',icon:'fa-magnifying-glass',run:()=>api.review(item)},
             {label:'생성 기록',icon:'fa-file-lines',run:()=>inspect(item)},

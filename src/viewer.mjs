@@ -3,36 +3,57 @@ import { el, button, iconButton, actionMenu, modal, setText } from './ui.mjs';
 
 const MIN=1,MAX=6,STEP=1.5;
 const clamp=(value,low,high)=>Math.min(high,Math.max(low,value));
+// Past an edge or a zoom limit the picture still follows the fingers, but only partly.
+const resist=(value,limit,give=.35)=>Math.abs(value)<=limit?value:Math.sign(value)*(limit+(Math.abs(value)-limit)*give);
+const soften=scale=>scale<MIN?MIN-(MIN-scale)*.45:scale>MAX?MAX+(scale-MAX)*.25:scale;
 
-// Pan and zoom for one picture inside a stage. The picture keeps its fitted
-// size in the layout; zoom and pan are a transform around its centre.
+// Pan and zoom for one picture inside a stage. The picture keeps its fitted size
+// in the layout; zoom and pan are one transform around its centre. Sizes are read
+// once when a gesture starts, and the transform is written at most once a frame,
+// so fingers never wait for the page to measure itself.
 function zoomable(stage,img,onChange){
-    let scale=1,tx=0,ty=0;
-    const limits=()=>{
-        const w=img.offsetWidth*scale,h=img.offsetHeight*scale;
-        return[Math.max(0,(w-stage.clientWidth)/2),Math.max(0,(h-stage.clientHeight)/2)];
+    let scale=1,tx=0,ty=0,frame=0,box=null,shown='';
+    const measure=()=>{const r=stage.getBoundingClientRect();box={w:img.offsetWidth,h:img.offsetHeight,sw:stage.clientWidth,sh:stage.clientHeight,cx:r.left+r.width/2,cy:r.top+r.height/2};return box;};
+    const limits=s=>{const b=box??measure();return[Math.max(0,(b.w*s-b.sw)/2),Math.max(0,(b.h*s-b.sh)/2)];};
+    const write=()=>{
+        frame=0;
+        const value=scale===1&&!tx&&!ty?'':`translate3d(${tx.toFixed(1)}px, ${ty.toFixed(1)}px, 0) scale(${scale.toFixed(4)})`;
+        if(value!==shown){img.style.transform=value;shown=value;}
+        stage.classList.toggle('is-zoomed',scale>1.001);onChange(scale);
     };
-    const apply=()=>{
-        const [lx,ly]=limits();tx=clamp(tx,-lx,lx);ty=clamp(ty,-ly,ly);
-        img.style.transform=scale===1&&!tx&&!ty?'':`translate(${tx}px, ${ty}px) scale(${scale})`;
-        stage.classList.toggle('is-zoomed',scale>1);onChange(scale);
+    const paint=()=>{frame||=requestAnimationFrame(write);};
+    const now=()=>{cancelAnimationFrame(frame);write();};
+    // Back inside the limits; with transitions on, this glides into place.
+    const settle=()=>{
+        scale=clamp(scale,MIN,MAX);if(scale===MIN){tx=ty=0;}
+        else{const [lx,ly]=limits(scale);tx=clamp(tx,-lx,lx);ty=clamp(ty,-ly,ly);}
+        now();
     };
     // Keeps the point under (x,y) in place while the scale changes.
     const zoomAt=(next,x,y)=>{
-        next=clamp(next,MIN,MAX);
-        const box=stage.getBoundingClientRect(),px=(x??box.left+box.width/2)-(box.left+box.width/2),py=(y??box.top+box.height/2)-(box.top+box.height/2);
-        tx=px-(px-tx)*(next/scale);ty=py-(py-ty)*(next/scale);scale=next;
-        if(scale===1)tx=ty=0;apply();
+        const b=measure();next=clamp(next,MIN,MAX);
+        const px=(x??b.cx)-b.cx,py=(y??b.cy)-b.cy;
+        tx=px-(px-tx)*(next/scale);ty=py-(py-ty)*(next/scale);scale=next;settle();
     };
     return{
         get scale(){return scale;},
         zoomAt,
         zoomBy:(factor,x,y)=>zoomAt(scale*factor,x,y),
         toggle:(x,y)=>scale>1?zoomAt(1):zoomAt(2.5,x,y),
-        panBy:(dx,dy)=>{tx+=dx;ty+=dy;apply();},
-        set:(s,x,y)=>{scale=s;tx=x;ty=y;apply();},
         state:()=>({scale,tx,ty}),
-        reset:()=>{scale=1;tx=ty=0;apply();},
+        // A gesture: measure once, follow freely, settle at the end.
+        begin:()=>{measure();img.classList.add('is-gesture');},
+        pinch:(start,from,to,ratio)=>{
+            scale=soften(start.scale*ratio);const r=scale/start.scale;
+            const [lx,ly]=limits(scale);
+            tx=resist(to.x-(from.x-start.tx)*r,lx,.6);ty=resist(to.y-(from.y-start.ty)*r,ly,.6);paint();
+        },
+        pan:(start,dx,dy)=>{const [lx,ly]=limits(scale);tx=resist(start.tx+dx,lx);ty=resist(start.ty+dy,ly);paint();},
+        slide:dx=>{tx=dx;ty=0;paint();},
+        finish:()=>{img.classList.remove('is-gesture');settle();},
+        // Relative to the stage centre, from page coordinates.
+        local:point=>({x:point.x-(box??measure()).cx,y:point.y-(box??measure()).cy}),
+        reset:()=>{scale=1;tx=ty=0;box=null;now();},
     };
 }
 
@@ -67,7 +88,7 @@ export function openViewer({items,index=0,describe=()=>({}),onShow=()=>{},meta=d
 
     function render(){
         const item=items[index];
-        img.classList.remove('is-sliding');img.style.transform='';zoom.reset();
+        zoom.reset();
         if(img.getAttribute('src')!==item.url)img.src=item.url;img.alt='그림';
         setText(heading,meta(item)||'그림');subtitle.hidden=true;
         setText(counter,`${index+1} / ${items.length}`);
@@ -87,50 +108,54 @@ export function openViewer({items,index=0,describe=()=>({}),onShow=()=>{},meta=d
         try{onShow(items[index],index);}catch{}
     }
 
-    // Gestures. One finger pans a zoomed picture or swipes to the next one;
-    // two fingers pinch. While zoomed in, a swipe never changes the picture.
+    // Gestures. One finger pans a zoomed picture or swipes to the next one; two
+    // fingers pinch. While zoomed in, or after a pinch, a finger never changes the picture.
     const pointers=new Map();let gesture=null,lastTap=null;
     const distance=([a,b])=>Math.hypot(a.x-b.x,a.y-b.y),middle=([a,b])=>({x:(a.x+b.x)/2,y:(a.y+b.y)/2});
+    const startPinch=()=>{const points=[...pointers.values()].slice(0,2);gesture={kind:'pinch',distance:Math.max(1,distance(points)),start:zoom.state(),centre:zoom.local(middle(points))};};
+    const startOne=(point,afterPinch)=>{gesture={kind:afterPinch||zoom.scale>1.001?'pan':'swipe',x:point.x,y:point.y,time:performance.now(),start:zoom.state(),moved:afterPinch};};
     stage.addEventListener('pointerdown',event=>{
         if(event.button>0)return;
-        stage.setPointerCapture(event.pointerId);pointers.set(event.pointerId,{x:event.clientX,y:event.clientY});
-        const points=[...pointers.values()],start=zoom.state();
-        if(points.length===2){const centre=middle(points),box=stage.getBoundingClientRect();gesture={kind:'pinch',distance:distance(points),start,centre:{x:centre.x-(box.left+box.width/2),y:centre.y-(box.top+box.height/2)}};img.classList.add('is-gesture');return;}
-        if(points.length===1)gesture={kind:start.scale>1?'pan':'swipe',x:event.clientX,y:event.clientY,time:performance.now(),start,moved:false};
-        img.classList.add('is-gesture');
+        try{stage.setPointerCapture(event.pointerId);}catch{}
+        if(!pointers.size)zoom.begin();
+        pointers.set(event.pointerId,{x:event.clientX,y:event.clientY});
+        if(pointers.size===2)startPinch();
+        else if(pointers.size===1)startOne({x:event.clientX,y:event.clientY},false);
     });
     stage.addEventListener('pointermove',event=>{
         if(!pointers.has(event.pointerId)||!gesture)return;
-        pointers.set(event.pointerId,{x:event.clientX,y:event.clientY});const points=[...pointers.values()];
-        if(gesture.kind==='pinch'&&points.length===2){
-            const box=stage.getBoundingClientRect(),now=middle(points),scale=clamp(gesture.start.scale*distance(points)/gesture.distance,MIN,MAX),cx=now.x-(box.left+box.width/2),cy=now.y-(box.top+box.height/2);
-            const ratio=scale/gesture.start.scale;
-            zoom.set(scale,cx-(gesture.centre.x-gesture.start.tx)*ratio,cy-(gesture.centre.y-gesture.start.ty)*ratio);return;
+        pointers.set(event.pointerId,{x:event.clientX,y:event.clientY});
+        if(gesture.kind==='pinch'){
+            if(pointers.size<2)return;
+            const points=[...pointers.values()].slice(0,2);
+            zoom.pinch(gesture.start,gesture.centre,zoom.local(middle(points)),distance(points)/gesture.distance);return;
         }
         const dx=event.clientX-gesture.x,dy=event.clientY-gesture.y;
         if(Math.hypot(dx,dy)>8)gesture.moved=true;
-        if(gesture.kind==='pan')zoom.set(gesture.start.scale,gesture.start.tx+dx,gesture.start.ty+dy);
-        else if(gesture.kind==='swipe'&&items.length>1&&Math.abs(dx)>Math.abs(dy))img.style.transform=`translateX(${dx}px)`;
+        if(gesture.kind==='pan')zoom.pan(gesture.start,dx,dy);
+        else if(items.length>1&&Math.abs(dx)>Math.abs(dy))zoom.slide(dx);
     });
     const end=event=>{
         if(!pointers.delete(event.pointerId))return;
-        img.classList.remove('is-gesture');
-        if(!gesture){return;}
-        if(gesture.kind==='pinch'){if(pointers.size===0)gesture=null;else{const [p]=pointers.values();gesture={kind:zoom.scale>1?'pan':'swipe',x:p.x,y:p.y,time:performance.now(),start:zoom.state(),moved:true};}return;}
-        const dx=event.clientX-gesture.x,dy=event.clientY-gesture.y,quick=performance.now()-gesture.time,kind=gesture.kind,moved=gesture.moved;gesture=null;
-        if(kind==='swipe'){
+        // One finger left after a pinch: it carries on panning from where the picture is.
+        if(gesture?.kind==='pinch'){if(pointers.size>=2)startPinch();else if(pointers.size===1){const [p]=pointers.values();startOne(p,true);}else{gesture=null;zoom.finish();}return;}
+        if(pointers.size)return;
+        const current=gesture;gesture=null;
+        if(!current){zoom.finish();return;}
+        const dx=event.clientX-current.x,dy=event.clientY-current.y,quick=performance.now()-current.time;
+        if(current.kind==='swipe'){
             const far=Math.abs(dx)>Math.max(60,stage.clientWidth*.18)||(Math.abs(dx)>30&&Math.abs(dx)/quick>.5);
-            if(items.length>1&&far&&Math.abs(dx)>Math.abs(dy)*1.2){go(dx<0?1:-1);return;}
-            img.classList.add('is-sliding');img.style.transform='';
+            if(items.length>1&&far&&Math.abs(dx)>Math.abs(dy)*1.2){img.classList.remove('is-gesture');go(dx<0?1:-1);return;}
         }
+        zoom.finish();
         // Two quick taps zoom in at that point, or back out.
-        if(!moved&&event.pointerType!=='mouse'&&quick<300){
-            const now=performance.now();
-            if(lastTap&&now-lastTap.time<320&&Math.hypot(event.clientX-lastTap.x,event.clientY-lastTap.y)<30){lastTap=null;zoom.toggle(event.clientX,event.clientY);}
-            else lastTap={time:now,x:event.clientX,y:event.clientY};
+        if(!current.moved&&event.pointerType!=='mouse'&&quick<300){
+            const time=performance.now();
+            if(lastTap&&time-lastTap.time<320&&Math.hypot(event.clientX-lastTap.x,event.clientY-lastTap.y)<30){lastTap=null;zoom.toggle(event.clientX,event.clientY);}
+            else lastTap={time,x:event.clientX,y:event.clientY};
         }
     };
-    for(const name of ['pointerup','pointercancel'])stage.addEventListener(name,end);
+    for(const name of ['pointerup','pointercancel','lostpointercapture'])stage.addEventListener(name,end);
     stage.addEventListener('dblclick',event=>{event.preventDefault();zoom.toggle(event.clientX,event.clientY);});
     stage.addEventListener('wheel',event=>{event.preventDefault();zoom.zoomBy(Math.exp(-event.deltaY*.0018),event.clientX,event.clientY);},{passive:false});
     dialog.addEventListener('keydown',event=>{

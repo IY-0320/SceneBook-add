@@ -291,11 +291,12 @@ details.ap2-group[open] { padding-bottom: 12px; }
 .ap2-dialog.ap2-viewer { --ap2-fg: #f4f4f5; --ap2-surface: #1b1b1e; --ap2-on: #141416; width: min(1100px, 96vw); max-width: 96vw; height: 94dvh; max-height: 94dvh; border: 0; background: #0b0b0c; color: var(--ap2-fg); }
 .ap2-viewer .ap2-body { display: flex; flex: 1 1 auto; padding: 0; overflow: hidden; }
 /* The stage takes every gesture itself: pinch, pan, swipe and double tap. */
-.ap2-viewer-stage { position: relative; display: grid; place-items: center; flex: 1 1 auto; min-width: 0; min-height: 0; overflow: hidden; touch-action: none; user-select: none; -webkit-user-select: none; cursor: grab; }
+.ap2-viewer-stage { position: relative; display: grid; place-items: center; flex: 1 1 auto; min-width: 0; min-height: 0; overflow: hidden; touch-action: none; overscroll-behavior: contain; user-select: none; -webkit-user-select: none; cursor: grab; }
 .ap2-viewer-stage.is-zoomed { cursor: move; }
-.ap2-full { display: block; max-width: 100%; max-height: 100%; min-height: 0; width: auto; height: auto; object-fit: contain; transition: transform .2s ease; will-change: transform; -webkit-user-drag: none; }
-.ap2-full.is-gesture { transition: none; }
-.ap2-full.is-sliding { transition: transform .18s ease-out; }
+.ap2-full { display: block; max-width: 100%; max-height: 100%; min-height: 0; width: auto; height: auto; object-fit: contain; transform-origin: 50% 50%; transition: transform .24s cubic-bezier(.2, .8, .2, 1); -webkit-user-drag: none; }
+/* Under the fingers the picture follows exactly, on its own layer; once let go it is
+   drawn again at the new size, so a zoomed picture stays sharp. */
+.ap2-full.is-gesture { transition: none; will-change: transform; }
 /* A thin row under the picture: moving between pictures on the left, zoom on the right. */
 .ap2-viewer-bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 34px; padding: 2px 10px 0; flex-shrink: 0; color: var(--ap2-muted); }
 .ap2-viewer-group { display: flex; align-items: center; gap: 2px; }
@@ -415,6 +416,11 @@ details.ap2-group[open] { padding-bottom: 12px; }
 .ap2-quick-shape > span { color: var(--ap2-muted); }
 .ap2-quick-shape .ap2-segmented { flex: 0 1 340px; }
 .ap2-quick-people .ap2-field > .ap2-field-label { font-weight: 600; color: var(--ap2-fg); }
+/* Comic page panels in the quick editor: one group per panel, a hairline between them. */
+.ap2-quick-panel { padding: 10px 0 2px; border-top: 1px solid color-mix(in srgb, var(--ap2-fg) 12%, transparent); }
+.ap2-quick-panel:first-child { border-top: 0; padding-top: 4px; }
+.ap2-quick-panel > h4 { margin: 0 0 2px; font-size: .9em; font-weight: 700; color: var(--ap2-fg); }
+.ap2-quick-panel .ap2-field > .ap2-field-label { font-weight: 500; color: var(--ap2-muted); }
 
 /* Guide and image import. */
 .ap2-guide-step { min-height: 80px; padding: 14px 16px; border-radius: 14px; background: var(--ap2-1); }

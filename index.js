@@ -151,11 +151,28 @@ function viewState(target,create=true) {
     if(!data.views[target.key]&&create)data.views[target.key]={source:target.snapshot.source,slots:[],draft:[]};
     const v=data.views[target.key];return v?.source===target.snapshot.source?v:null;
 }
+// SillyTavern's chat save first waits on a 100 ms timer. Browsers slow or hold timers
+// in a background tab, so a save started there finishes only when the tab is shown.
+// Picture work must not wait for it: the chat in memory is already up to date, and
+// saves are chained so the last one writes everything.
+let chatSave=null,saveAgain=false,hiddenNow=null;
+function persistChat(){
+    if(chatSave){saveAgain=true;return chatSave;}
+    chatSave=(async()=>{try{do{saveAgain=false;await context().saveChat();}while(saveAgain);}finally{chatSave=null;}})();
+    return chatSave;
+}
+// Resolves as soon as the page is hidden, or at once if it is hidden already.
+function whenHidden(){
+    if(document.hidden)return Promise.resolve();
+    return hiddenNow??=new Promise(resolve=>{const check=()=>{if(!document.hidden)return;document.removeEventListener('visibilitychange',check);hiddenNow=null;resolve();};document.addEventListener('visibilitychange',check);});
+}
 async function saveMessage(target) {
     if(!current(target))throw new Error('대상 채팅·답변이 변경됐습니다. 결과는 갤러리에서 복구하세요.');
     const message=target.message;
     if(message.swipe_info?.[message.swipe_id??0])message.swipe_info[message.swipe_id??0].extra=structuredClone(message.extra);
-    await context().saveChat();scheduleRender();
+    const saved=persistChat();scheduleRender();
+    // In view, wait as before; in the background, carry on and let the save land later.
+    await Promise.race([saved,whenHidden()]);
 }
 async function analysisRequest(config,prompt,length,options={}) {
     try{return await requestAnalysis(context(),ConnectionManagerRequestService,(payload,signal)=>request('vertex',payload,signal),config.profileId,prompt,length,options);}
@@ -277,10 +294,14 @@ async function enqueue(target,scenes,slotId=null,overrideConfig=null) {
         const key=`${target.scope}:${target.id}:${target.key}:${slotId??`scene-${position}`}`;
         // The plan may ask for a portrait, landscape or square canvas for this scene.
         const shape=!overrideConfig&&settings().autoSize?orientation(scenes[position].size):'';
-        let frozen={...generationConfig(rendered),...(shape?sizeFor(c,shape):{})},sent=scene;const id=crypto.randomUUID();
+        let frozen={...generationConfig(rendered),...(shape?sizeFor(c,shape):{})},sent=scene,pageScene=null;const id=crypto.randomUUID();
         // A page is sent as one finished prompt, with each character placed in every panel they appear in.
+        // The panels themselves stay with the picture, so it can be edited panel by panel later.
         const page=scenes[position].page;
-        if(page?.panels?.length){const compiled=compilePage({...scene,page,pageFormat:scenes[position].pageFormat},{...frozen,speechBubbles:!!scenes[position].bubbles});sent=compiled.scene;frozen=generationConfig(compiled.config);}
+        if(page?.panels?.length){
+            pageScene={...scene,page:structuredClone(page),pageFormat:scenes[position].pageFormat,bubbles:!!scenes[position].bubbles};
+            const compiled=compilePage(pageScene,{...frozen,speechBubbles:pageScene.bubbles});sent=compiled.scene;frozen=generationConfig(compiled.config);
+        }
         const added=queue.add(key,async()=>{
             let progress;
             try{
@@ -291,7 +312,7 @@ async function enqueue(target,scenes,slotId=null,overrideConfig=null) {
             sessionRequests++;
             const label=sceneLabel(scene);
             progress=progressNotice(`삽화 생성 중${checked.length>1?` (${position+1}/${checked.length})`:''}${label?` · ${label}`:''}`);
-            const job=await request('generate',{id,scene:sent,config:frozen});if(presetName)job.preset=presetName;const inserted=await attach(target,job,slotId);setWorkflowStatus('삽화 생성 완료');
+            const job=await request('generate',{id,scene:sent,config:frozen});if(presetName)job.preset=presetName;if(pageScene)job.pageScene=pageScene;const inserted=await attach(target,job,slotId);setWorkflowStatus('삽화 생성 완료');
             if(inserted)notify(`삽화 생성 완료${label?` · ${label}`:''}`,{kind:'success'});
             }catch(e){if(['NO_KEY','NAI_401','NAI_402','NAI_403','NAI_429','COOLDOWN'].includes(e.code))queue.paused=true;setWorkflowStatus(e.message);notice(`삽화 생성 실패 · ${e.message}`,true);throw e;}
             finally{progress?.close();}
@@ -406,7 +427,7 @@ async function removeFromChat(ids){
             }
         }
     }
-    if(changed){await ctx.saveChat();scheduleRender();}
+    if(changed){await persistChat();scheduleRender();}
 }
 async function deleteImages(jobs){
     const done=[];
@@ -445,7 +466,7 @@ function openQuickEdit(index,slot) {
     if(!viewState(target,false)?.slots.includes(slot)||slot.deleted)throw new Error('대상 답변이 바뀌었습니다. 이미지를 다시 열어 주세요.');
     const check=()=>{if(!current(target)||slot.deleted)throw new Error('대상 답변이 바뀌었습니다. 이미지를 다시 열어 주세요.');};
     // The picture's own prompts, with its look taken back out so it is shown and applied once.
-    quickEdit({scene:job.scene,config:{...editableConfig(job.config),presets:settings().presets??[],presetName:job.preset??''},seed:job.seed,imageUrl:job.url,
+    quickEdit({scene:job.scene,page:job.pageScene,config:{...editableConfig(job.config),presets:settings().presets??[],presetName:job.preset??''},seed:job.seed,imageUrl:job.url,
         onRewrite:async(scene,request)=>{check();return(await analyze(target,[{...scene,after:Math.min(scene.after,target.snapshot.blocks.length)}],request,'all',false))[0];},
         onGenerate:(scene,{size,keepSeed,saveDefault,...edits})=>{
             check();
@@ -497,7 +518,7 @@ function renderMessage(index) {
         const targetForImage=()=>{const target=capture(index);if(!viewState(target,false)?.slots.includes(slot)||slot.deleted)throw new Error('대상 답변이 바뀌었습니다.');return target;};
         for(const [label,icon,action]of [
             ['수정','fa-pen',()=>{targetForImage();return openQuickEdit(index,slot);}],
-            ['재생성','fa-rotate-right',()=>enqueue(targetForImage(),[job.scene],slot.id,restyled(job))],
+            ['재생성','fa-rotate-right',()=>enqueue(targetForImage(),[job.pageScene??job.scene],slot.id,restyled(job))],
         ]){const b=button('',()=>{toolsShown.get(figure)?.();return action();},false,icon);b.title=label==='재생성'?'같은 프롬프트, 새 시드로 다시 그리기':'프롬프트를 고쳐서 다시 그리기';b.setAttribute('aria-label',label);overlay.append(b);}
         imageWrap.append(open,overlay);figure.append(imageWrap);applyFrame(figure,imageWrap,open,job.config.width,job.config.height,config);
         if(slot.versions.length>1){
