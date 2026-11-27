@@ -1,3 +1,5 @@
+import { activePreset, inPresetStyle } from './presets.mjs';
+import { PAGE_FORMATS, PANEL_COUNTS } from './comic.mjs';
 import { MODELS, SAMPLERS, usableReferences } from '../plugin/core.mjs';
 import { CLIENT_VERSION, serverAtLeast } from './server-health.mjs';
 import { showGuide } from './guide.mjs';
@@ -139,6 +141,12 @@ function promptPage(page,{api,open}){
 }
 function imagePage(page,{api,open}){
     const c=api.settings(),fields={};
+    // Saved presets switch the art style in one tap; size, seed and automatic illustration stay as they are.
+    const quick=section(page,'그림체 프리셋'),applied=activePreset(c);
+    if(c.presets?.length){
+        const chips=choiceChips('그림체 프리셋',c.presets.map(p=>[p.name,p.name]),applied?.name??'',name=>{const p=api.settings().presets.find(x=>x.name===name);if(!p)return;api.saveSettings(inPresetStyle({...api.settings()},p));notice(`그림체 프리셋 “${name}” 적용 · 다시 그리기도 이 그림체로 그립니다.`);void open('image',true);});
+        quick.append(chips.wrap,el('p','ap2-muted',applied?`적용 중 · ${applied.name}`:'적용 중인 프리셋 없음 · 지금 설정이 어느 프리셋과도 같지 않습니다.'));
+    }else quick.append(el('p','ap2-muted','아래 프리셋 · 백업에서 지금 설정을 프리셋으로 저장하면 여기서 한 번에 바꿀 수 있습니다.'));
     const modelBox=section(page,'모델'),modelHelp=el('p','ap2-muted');
     const model=addField(modelBox,fields,'model','NovelAI 모델',c.model,{choices:Object.entries(MODELS).map(([id,m])=>[id,m.label])});modelBox.append(modelHelp);
     const sizeBox=section(page,'크기');
@@ -152,6 +160,20 @@ function imagePage(page,{api,open}){
     const matchSize=()=>preset.set(SIZES.find(([,,w,h])=>w===fields.width.read()&&h===fields.height.read())?.[0]??'custom');
     dimensions.addEventListener('input',matchSize);matchSize();
     addField(sizeBox,fields,'autoSize','장면에 맞춰 세로·가로 바꾸기',c.autoSize,{type:'checkbox',help:'누운 장면은 가로, 서 있는 장면은 세로처럼 AI가 장면마다 화면 비율을 고릅니다. 픽셀 수는 위 크기와 비슷하게 유지합니다.'});
+    // A page of several panels instead of one picture. Chosen here; V5 only.
+    const pageBox=section(page,'그림 형식'),pageHelp=el('p','ap2-muted');
+    let format=c.pageFormat??'single',panels=c.panelCount??0;
+    const formatChoice=segmented('그림 형식',PAGE_FORMATS.map(([id,label])=>[id,label]),format,value=>{format=value;syncPage();page.dispatchEvent(new Event('input'));});
+    const countChoice=segmented('컷 수',PANEL_COUNTS.map(([n,label])=>[String(n),label]),String(panels),value=>{panels=Number(value);page.dispatchEvent(new Event('input'));});
+    const countRow=el('div','ap2-quick-shape');countRow.append(el('span','','컷 수'),countChoice.wrap);
+    pageBox.append(formatChoice.wrap,pageHelp,countRow);
+    const bubbles=addField(pageBox,fields,'speechBubbles','말풍선에 대사 넣기',c.speechBubbles,{type:'checkbox',help:'칸마다 대사 한 줄을 말풍선에 넣습니다. NovelAI는 한글 글자를 잘 그리지 못해 뭉개질 수 있습니다.'});
+    fields.pageFormat={read:()=>format};fields.panelCount={read:()=>panels};
+    function syncPage(){
+        const v5=String(fields.model?.input.value??c.model).startsWith('nai-diffusion-5-'),single=format==='single';
+        formatChoice.disable(!v5);countRow.hidden=bubbles.closest('.ap2-field').hidden=single||!v5;
+        pageHelp.textContent=!v5?'만화 페이지는 V5 모델에서만 그립니다. 지금 모델에서는 한 장면씩 그립니다.':PAGE_FORMATS.find(([id])=>id===format)?.[2]??'';
+    }
     const sampling=section(page,'품질','기본값 그대로 써도 됩니다.'),grid=el('div','ap2-grid');sampling.append(grid);
     addField(grid,fields,'steps','Steps',c.steps,{type:'number',min:1,max:50,step:1});
     addField(grid,fields,'scale','Guidance',c.scale,{type:'number',min:0,max:10,step:0.1});
@@ -169,12 +191,18 @@ function imagePage(page,{api,open}){
         const v5=model.value.startsWith('nai-diffusion-5-');if(v5)scheduler.value='karras';scheduler.disabled=v5;transparent.disabled=!v5;if(!v5)transparent.checked=false;
         modelHelp.textContent=v5?'V5: 자연어 프롬프트, 인물 자유 배치, 투명 배경, 참조(인물 · 그림체 · 의상 여러 장)를 지원합니다.':'V4.5: 태그 프롬프트, 5 × 5 인물 배치, 분위기(Vibe)와 Precise Reference 1장을 지원합니다.';
     };
-    model.addEventListener('change',updateModel);updateModel();
+    model.addEventListener('change',()=>{updateModel();syncPage();});updateModel();syncPage();
     const analysis=foldout(page,'수동 분석');
     analysis.append(el('p','ap2-muted','삽화 지시가 없는 답변을 따로 분석해 장면을 만듭니다. AI 요청이 한 번 더 발생합니다.'));
     addField(analysis,fields,'profileId','연결 프로필',c.profileId,{choices:[['','현재 채팅 연결'],...api.profiles().map(p=>[p.id,p.name])],help:'따로 고르지 않아도 현재 대화에 사용하는 AI로 분석합니다.'});
     addField(analysis,fields,'analysisMode','분석 방식',c.analysisMode,{choices:[['quick','빠르게'],['precise','정밀하게']],help:'정밀 분석은 복장·외형 시점 확인에 LLM을 한 번 더 호출합니다.'});
     addField(analysis,fields,'contextMessages','함께 읽을 이전 메시지',c.contextMessages,{type:'number',min:0,max:30,step:1});
+    // How long the scene-writing reply may be. Thinking models spend part of it on thoughts.
+    const lengthNumber=field('최대 길이 (토큰)',c.analysisLength||16000,{type:'number',min:1000,max:128000,step:1000});
+    const lengthMode=segmented('분석 답 길이',[['auto','자동'],['manual','직접 정하기']],c.analysisLength?'manual':'auto',value=>{lengthNumber.wrap.hidden=value!=='manual';page.dispatchEvent(new Event('input'));});
+    const lengthRow=el('div','ap2-quick-shape');lengthRow.append(el('span','','분석 답 길이'),lengthMode.wrap);lengthNumber.wrap.hidden=!c.analysisLength;
+    fields.analysisLength={read:()=>lengthMode.read()==='manual'?Math.min(128000,Math.max(1000,Math.round(Number(lengthNumber.read())||16000))):0};
+    analysis.append(lengthRow,lengthNumber.wrap,el('p','ap2-muted','자동은 장면 수 × 1,800 (최대 6,000)입니다. 생각하는 모델이 빈 답을 보내면 직접 정하기로 16,000 이상을 주세요.'));
     analysis.append(button('마지막 답변 분석',()=>api.analyze(),false,'fa-wand-magic-sparkles'));
     saveBar(page,()=>api.saveSettings({...api.settings(),...readFields(fields)}));
     const presets=foldout(page,'프리셋 · 백업');
@@ -192,9 +220,10 @@ function imagePage(page,{api,open}){
 function displayPage(page,{api}){
     const c=api.settings(),fields={};
     const place=section(page,'채팅에 보이는 모습','그림이 채팅에서 어떻게 보일지 정합니다. 원본 파일은 바뀌지 않습니다.');
-    addField(place,fields,'placement','그림 위치',c.placement,{choices:[['end','답변 아래'],['inline','문단 뒤']]});
+    addField(place,fields,'placement','그림 위치',c.placement,{choices:[['end','답변 아래'],['inline','문단 뒤'],['auto','AI가 고른 문단 뒤']]});
     addField(place,fields,'displayWidth','최대 너비 (픽셀)',c.displayWidth,{type:'number',min:240,max:1200,step:1});
     addField(place,fields,'compact','작게 표시',c.compact,{type:'checkbox'});
+    addField(place,fields,'touchTools','터치 화면의 그림 위 버튼',c.touchTools,{choices:[['always','항상 보이기'],['tap','그림을 한 번 눌렀을 때']],help:'한 번 눌렀을 때: 그림을 한 번 누르면 수정·재생성 버튼이 잠깐 보이고, 한 번 더 누르면 크게 봅니다.'});
     const frameBox=section(page,'삽화 액자');
     // Each tile draws its frame with the same code the chat uses.
     let frame=c.frame,frameWide=c.frameWide??'';const frames=el('div','ap2-frame-picker');frames.setAttribute('role','radiogroup');frames.setAttribute('aria-label','삽화 액자');
@@ -258,8 +287,8 @@ export function studio(api,{page:first='home',host=null}={}){
     const display=id=>{const page=cached.get(id);for(const node of pages.children){const on=node===(page??loading);if(node.hidden===on)node.hidden=!on;}};
     // What a page was built from. A page is rebuilt only when this no longer matches.
     const DEPENDS={prompt:['look','style','negative','quality','leanPrompt','analysisPrompt','injectionPrompt','model'],
-        image:['model','width','height','autoSize','steps','scale','budgetGuard','sampler','scheduler','seed','cfgRescale','useCoords','useOrder','transparent','profileId','analysisMode','contextMessages'],
-        display:['placement','displayWidth','compact','frame','frameWide','frameInk'],references:['model','references']};
+        image:['model','width','height','autoSize','steps','scale','budgetGuard','sampler','scheduler','seed','cfgRescale','useCoords','useOrder','transparent','profileId','analysisMode','contextMessages','analysisLength','pageFormat','panelCount','speechBubbles','style','negative','look','quality','references'],
+        display:['placement','displayWidth','compact','touchTools','frame','frameWide','frameInk'],references:['model','references']};
     const signature=id=>{
         if(DEPENDS[id]){const s=api.settings();return JSON.stringify([DEPENDS[id].map(key=>s[key]),id==='image'?(s.presets??[]).map(p=>p.name):id==='display'?(s.customFrames??[]).map(f=>f.id):0]);}
         if(id==='characters')return `${api.contextKey()}`;
@@ -351,6 +380,8 @@ export function mountSettings(api,container){
     drawer.append(header,content);container.append(drawer);
     header.addEventListener('click',()=>{header.setAttribute('aria-expanded',String(header.getAttribute('aria-expanded')!=='true'));});
     header.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();header.click();}});
+    // Arrow keys on the tabs and buttons here would otherwise swipe the reply behind.
+    content.addEventListener('keydown',e=>{if(/^Arrow/.test(e.key))e.stopPropagation();});
     syncTone();studio(api,{host:content});
     return drawer;
 }

@@ -53,17 +53,63 @@ export function illustrationBlocks(source) {
     // still a valid illustration target; paragraph parsing is only a UI aid.
     return blocks.length||!content.trim()?blocks:[{index:1,content:content.trim(),start:0,end:content.length}];
 }
+// Placements that put a picture after one paragraph: chosen by hand, or by the AI.
+export const byParagraph = placement => placement === 'inline' || placement === 'auto';
+// A quote copied by a model is rarely exact: spacing, punctuation, a changed
+// particle or a dropped word. Paragraphs are compared by their pairs of letters.
+const compact = value => normalized(value).toLowerCase().replace(/[\s"'“”‘’「」『』*_~`.,!?…:;()\[\]{}<>\-—–·]+/g, '');
+function letterPairs(value) {
+    const s = compact(value), pairs = new Set();
+    for (let i = 0; i < s.length - 1; i++) pairs.add(s.slice(i, i + 2));
+    if (s.length === 1) pairs.add(s);
+    return pairs;
+}
+// How much of the quote appears in the text, from 0 to 1.
+export function quoteScore(quote, text) {
+    const wanted = letterPairs(quote); if (!wanted.size) return 0;
+    const found = letterPairs(text); let hit = 0;
+    for (const pair of wanted) if (found.has(pair)) hit++;
+    return hit / wanted.size;
+}
+// The paragraph a quote comes from: an exact match first, otherwise the clearly
+// closest one. Two paragraphs that fit about equally well are not guessed between.
+export function matchParagraph(quote, blocks, minimum = .5) {
+    const q = normalized(quote); if (!q || !blocks.length) return null;
+    const exact = blocks.find(b => normalized(b.content).includes(q)); if (exact) return exact;
+    let best = null, top = 0, runnerUp = 0;
+    for (const block of blocks) {
+        const score = quoteScore(q, block.content);
+        if (score > top) { runnerUp = top; top = score; best = block; } else if (score > runnerUp) runnerUp = score;
+    }
+    return top >= minimum && top - runnerUp >= .08 ? best : null;
+}
 export function scenePosition(scene, context, placement='end') {
     if(!scene||typeof scene!=='object'||Array.isArray(scene))return scene;
     const blocks=context.blocks??[],tail=blocks.at(-1)?.index??1;
-    if(placement!=='inline')return{...scene,after:tail,evidence:''};
+    if(!byParagraph(placement))return{...scene,after:tail,evidence:''};
     const quote=typeof scene.evidence==='string'&&scene.evidence.length<=2000?normalized(scene.evidence):'';
-    const matches=quote?blocks.filter(b=>normalized(b.content).includes(quote)):[];
-    const block=matches.length===1?matches[0]:null;
-    return{...scene,after:block?.index??tail,evidence:block?(quote||block.content.slice(0,2000)):''};
+    // The quote decides; a paragraph number given with it is used only when the quote cannot be found.
+    const number=Number(scene.after),numbered=Number.isInteger(number)?blocks.find(b=>b.index===number):null;
+    const block=matchParagraph(quote,blocks)??numbered;
+    return{...scene,after:block?.index??tail,evidence:block?(quote&&normalized(block.content).includes(quote)?quote:block.content.slice(0,2000)):''};
+}
+// The paragraph on screen that a picture belongs after. A reply shown translated
+// or reformatted no longer contains the quoted words: then the paragraph in the
+// same position is used, as long as the paragraph count is about the same.
+export function displayParagraph(nodes, anchor, sourceCount) {
+    if (!anchor?.quote || !nodes.length) return null;
+    const wanted = normalized(String(anchor.quote).replace(/[*_]/g, ''));
+    const same = nodes.find(n => normalized(n.textContent) === wanted); if (same) return same;
+    let best = null, top = 0;
+    for (const n of nodes) { const score = quoteScore(wanted, n.textContent); if (score > top) { top = score; best = n; } }
+    if (top >= .8) return best;
+    const total = sourceCount || nodes.length;
+    if (!(anchor.index > 0) || Math.abs(nodes.length - total) > Math.max(1, Math.round(total * .2))) return null;
+    const position = nodes.length === total ? anchor.index - 1 : Math.round(anchor.index / total * nodes.length) - 1;
+    return nodes[Math.max(0, Math.min(nodes.length - 1, position))];
 }
 export function validateAnchor(scene, context, placement='end') {
-    const block = placement==='inline'&&context.blocks.find(b => b.index === scene.after);
+    const block = byParagraph(placement)&&context.blocks.find(b => b.index === scene.after);
     if(block&&scene.evidence&&normalized(block.content).includes(normalized(scene.evidence)))return{index:block.index,quote:block.content,source:context.source};
     // Empty quote marks a reply-level attachment, independent of paragraphs.
     return { index: 0, quote: '', source: context.source };

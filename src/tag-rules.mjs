@@ -19,3 +19,5 @@ export function mergeTags(preset,existing){
     const list=value=>String(value??'').split(',').map(tag=>tag.trim()).filter(Boolean),have=new Set(list(preset).map(tag=>tag.toLowerCase()));
     return [...list(preset),...list(existing).filter(tag=>!have.has(tag.toLowerCase()))].join(', ');
 }
+// Details image models drop unless told: sent with every plan, whatever the template.
+export const VISIBLE_DETAIL='VISIBLE DETAIL: name clothing exactly (garment type, colour, material, legwear, accessories) and keep it identical in every picture while it is worn; show height and build differences between people when they are visible; for movement or a fight add dynamic pose, motion blur or speed lines and say which way the force goes; weather marks the people in it (rain: wet hair, wet clothes; wind: hair and clothes blowing); carry lasting changes from the story (injuries, bandages, tattoos, cut hair) into every later picture.';

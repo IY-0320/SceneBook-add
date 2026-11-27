@@ -1,5 +1,6 @@
 import { MODELS, safeImagePath } from '../plugin/core.mjs';
 import { CAMERA_TAGS, ORIENTATIONS, LOOKS, hasCameraTag, toggleCameraTag } from './framing.mjs';
+import { presetStyle } from './presets.mjs';
 import { el, button, field, modal, segmented } from './ui.mjs';
 
 // Camera shortcuts: one viewpoint and one shot size at a time.
@@ -45,7 +46,11 @@ export function quickEdit({scene,config,seed,imageUrl,onRewrite,onGenerate,onDet
     const styleBox=block('메인 프롬프트','이 그림에 쓴 화풍·공통 태그입니다. 여기서 고치면 이 그림에만 적용됩니다.');
     const look=field('그림체',LOOKS.some(([id])=>id===config.look)?config.look:'',{choices:LOOKS.map(([id,label])=>[id,label])});
     const style=bare(field('메인 프롬프트',config.style??'',{multiline:true,rows:3})),keep=field('앞으로 그릴 그림에도 적용',false,{type:'checkbox',help:'메인 프롬프트·제외할 요소·그림체를 기본 설정에도 저장합니다.'});
-    styleBox.append(style.wrap,look.wrap);
+    // Another saved preset for this picture only: its art settings fill the fields below.
+    const presets=config.presets??[],presetChoice=field('그림체 프리셋',config.presetName??'',{choices:[['','이 그림 그대로'],...presets.map(p=>[p.name,p.name])]});
+    presetChoice.input.addEventListener('change',()=>{const p=presets.find(x=>x.name===presetChoice.read());if(!p)return;style.input.value=p.config.style??'';negative.input.value=p.config.negative??'';look.input.value=LOOKS.some(([id])=>id===p.config.look)?p.config.look:'';for(const input of [style.input,negative.input])input.dispatchEvent(new Event('input'));});
+    presetChoice.wrap.hidden=!presets.length;
+    styleBox.append(presetChoice.wrap,style.wrap,look.wrap);
     const excludeBox=block('제외할 요소 (UC)'),negative=bare(field('제외할 요소',config.negative??'',{multiline:true,rows:2}));excludeBox.append(negative.wrap,keep.wrap);
     const cameraBox=block('구도 · 화면 비율 · 시드'),camera=bare(field('구도','',{placeholder:'예: from side, upper body'})),chips=cameraChips(camera);
     const shape=segmented('화면 비율',[['','그대로'],...ORIENTATIONS.slice(1)],size,value=>{size=value;}),shapeRow=el('div','ap2-quick-shape');shapeRow.append(el('span','','화면 비율'),shape.wrap);
@@ -73,7 +78,7 @@ export function quickEdit({scene,config,seed,imageUrl,onRewrite,onGenerate,onDet
         const final=!!draft.finalPrompt,characters=(draft.characters??[]).map((c,i)=>({...c,prompt:cast[i].read()}));
         if(final)return{scene:{...draft,prompt:prompt.read().trim(),negative:negative.read().trim(),camera:'',finalPrompt:true,characters},edits:{}};
         return{scene:{...draft,camera:camera.read().trim(),prompt:prompt.read().trim(),negative:sceneExclude.wrap.hidden?'':sceneExclude.read().trim(),finalPrompt:false,characters},
-            edits:{style:style.read().trim(),negative:negative.read().trim(),look:look.read()}};
+            edits:{...presetStyle(presets.find(p=>p.name===presetChoice.read())),style:style.read().trim(),negative:negative.read().trim(),look:look.read(),presetName:presetChoice.read()}};
     }
     fill();
     const footer=el('footer','ap2-footer ap2-editor-footer'),left=el('div','ap2-actions'),right=el('div','ap2-actions');

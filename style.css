@@ -48,7 +48,7 @@
 :where(#ap2-settings, .ap2-dialog, .ap2-figure, .ap2-action-panel) .ap2-button.ap2-primary:hover { background: color-mix(in srgb, var(--ap2-fg) 86%, transparent); }
 .ap2-button.ap2-primary > i { opacity: 1; }
 :where(#ap2-settings, .ap2-dialog, .ap2-figure, .ap2-action-panel) .ap2-button.ap2-danger { color: var(--ap2-danger); }
-:where(#ap2-settings, .ap2-dialog, .ap2-figure, .ap2-action-panel) .ap2-button:disabled { opacity: .35; cursor: default; pointer-events: none; }
+:where(#ap2-settings, .ap2-dialog, .ap2-figure, .ap2-action-panel) .ap2-button:disabled { opacity: .45; cursor: default; pointer-events: none; }
 :is(.ap2-button, .ap2-segment, .ap2-chip-button, .ap2-frame-choice, .ap2-gallery-item, .ap2-image-open, .ap2-paragraph-choice, .ap2-position-person, .ap2-summary-row):focus-visible { outline: 2px solid color-mix(in srgb, var(--ap2-fg) 55%, transparent); outline-offset: 2px; }
 :where(#ap2-settings, .ap2-dialog, .ap2-figure) .ap2-button.ap2-icon-button { width: var(--ap2-h); padding: 0; }
 :where(#ap2-settings, .ap2-dialog) .ap2-button.ap2-close { background: none; font-size: 1.05em; }
@@ -127,8 +127,8 @@
 .ap2-group { min-width: 0; margin: 0 0 8px; padding: 0 16px; border: 0; border-radius: 14px; background: var(--ap2-1); }
 :is(.ap2-group, .ap2-character, .ap2-guide-topic, .ap2-instructions) > summary { display: flex; align-items: center; justify-content: space-between; gap: 8px; list-style: none; cursor: pointer; user-select: none; -webkit-tap-highlight-color: transparent; }
 :is(.ap2-group, .ap2-character, .ap2-guide-topic, .ap2-instructions) > summary::-webkit-details-marker { display: none; }
-:is(.ap2-group, .ap2-character, .ap2-guide-topic, .ap2-instructions) > summary::after { content: ''; flex: none; width: 7px; height: 7px; margin-inline-end: 4px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: rotate(-45deg); opacity: .5; transition: transform .15s; }
-:is(.ap2-group, .ap2-character, .ap2-guide-topic, .ap2-instructions)[open] > summary::after { transform: rotate(45deg); }
+:is(.ap2-group, .ap2-character, .ap2-guide-topic, .ap2-instructions) > summary::after { content: ''; flex: none; width: 7px; height: 7px; margin-inline-end: 4px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: rotate(45deg) translateY(-2px); opacity: .5; transition: transform .15s; }
+:is(.ap2-group, .ap2-character, .ap2-guide-topic, .ap2-instructions)[open] > summary::after { transform: rotate(225deg) translateY(-2px); }
 .ap2-group > summary { min-height: 48px; font-size: .95em; font-weight: 600; }
 details.ap2-group[open] { padding-bottom: 12px; }
 .ap2-group-content { min-width: 0; }
@@ -236,7 +236,18 @@ details.ap2-group[open] { padding-bottom: 12px; }
 .ap2-reference .ap2-note { margin: 6px 0 0; }
 
 /* Gallery. */
-.ap2-gallery-toolbar { display: grid; grid-template-columns: minmax(0,1fr) minmax(104px,auto) auto; gap: 6px; align-items: center; font-size: .9em; }
+.ap2-gallery-toolbar { display: grid; grid-template-columns: minmax(0,1fr) minmax(96px,auto) auto auto; gap: 6px; align-items: center; font-size: .9em; }
+.ap2-gallery-toolbar > .ap2-button[aria-pressed=true] { background: var(--ap2-fg); color: var(--ap2-on); }
+/* While choosing: a bar with the count and what to do with the chosen pictures. */
+.ap2-gallery-tray { position: sticky; top: 0; z-index: 2; display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; margin: 8px 0 0; padding: 8px 10px; border-radius: var(--ap2-r); background: var(--ap2-surface); box-shadow: 0 0 0 1px var(--ap2-line), 0 4px 14px #0000002a; }
+.ap2-gallery-tray-count { flex: 1 1 auto; font-size: .88em; font-weight: 600; }
+.ap2-gallery-tray .ap2-actions { margin: 0; }
+.ap2-gallery-check { position: absolute; top: 6px; right: 6px; display: none; width: 22px; height: 22px; border-radius: 50%; background: #0000004d; box-shadow: inset 0 0 0 2px #fff; }
+.ap2-gallery.is-selecting .ap2-gallery-check { display: block; }
+.ap2-gallery-item[aria-pressed=true] .ap2-gallery-check { background: var(--ap2-fg); box-shadow: inset 0 0 0 2px var(--ap2-fg), 0 0 0 2px #fff; }
+.ap2-gallery-item[aria-pressed=true] .ap2-gallery-check::after { content: ''; position: absolute; left: 7px; top: 3px; width: 6px; height: 11px; border: solid var(--ap2-on); border-width: 0 2.5px 2.5px 0; transform: rotate(45deg); }
+.ap2-gallery-item[aria-pressed=true] img { opacity: .72; }
+@media (max-width: 480px) { .ap2-gallery-toolbar { grid-template-columns: minmax(0,1fr) auto auto; } .ap2-gallery-toolbar > input { grid-column: 1 / -1; } }
 .ap2-gallery-toolbar + .ap2-muted { margin: 8px 0; }
 .ap2-gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100px,100%),1fr)); gap: 6px; }
 .ap2-gallery .ap2-empty { grid-column: 1 / -1; }
@@ -264,7 +275,10 @@ details.ap2-group[open] { padding-bottom: 12px; }
 .ap2-header h2 { margin: 0; font-size: 1.05em; font-weight: 600; line-height: 1.35; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ap2-header p { margin: 1px 0 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ap2-header-actions { margin: 0; flex-wrap: nowrap; }
-.ap2-body { padding: 4px 18px 16px; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+.ap2-body { padding: 4px 18px 16px; min-width: 0; min-height: 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; }
+/* Grid and flex children default to min-width:auto and would stretch the dialog to their content. */
+.ap2-body :is(.ap2-edit-columns, .ap2-edit-layout, .ap2-cast-layout, .ap2-cast-editor) > *, .ap2-edit-block, .ap2-editor-content { min-width: 0; }
+:is(#ap2-settings, .ap2-dialog) textarea { width: 100%; max-width: 100%; overflow-wrap: anywhere; }
 .ap2-footer { display: flex; justify-content: flex-end; gap: 8px; padding: 10px 18px 14px; flex-shrink: 0; }
 .ap2-footer:empty { display: none; }
 .ap2-excerpt { margin: 8px 0; padding: 10px 14px; max-height: 120px; overflow: auto; border-radius: var(--ap2-r); background: var(--ap2-1); white-space: pre-wrap; font-size: .88em; line-height: 1.6; }
@@ -275,17 +289,30 @@ details.ap2-group[open] { padding-bottom: 12px; }
 
 /* Image viewer: always dark, the picture fills the space. */
 .ap2-dialog.ap2-viewer { --ap2-fg: #f4f4f5; --ap2-surface: #1b1b1e; --ap2-on: #141416; width: min(1100px, 96vw); max-width: 96vw; height: 94dvh; max-height: 94dvh; border: 0; background: #0b0b0c; color: var(--ap2-fg); }
-.ap2-viewer .ap2-body { display: grid; place-items: center; padding: 0; overflow: hidden; }
-.ap2-full { display: block; max-width: 100%; max-height: 100%; min-height: 0; width: auto; height: auto; object-fit: contain; }
-.ap2-viewer .ap2-body { flex: 1 1 auto; }
+.ap2-viewer .ap2-body { display: flex; flex: 1 1 auto; padding: 0; overflow: hidden; }
+/* The stage takes every gesture itself: pinch, pan, swipe and double tap. */
+.ap2-viewer-stage { position: relative; display: grid; place-items: center; flex: 1 1 auto; min-width: 0; min-height: 0; overflow: hidden; touch-action: none; user-select: none; -webkit-user-select: none; cursor: grab; }
+.ap2-viewer-stage.is-zoomed { cursor: move; }
+.ap2-full { display: block; max-width: 100%; max-height: 100%; min-height: 0; width: auto; height: auto; object-fit: contain; transition: transform .2s ease; will-change: transform; -webkit-user-drag: none; }
+.ap2-full.is-gesture { transition: none; }
+.ap2-full.is-sliding { transition: transform .18s ease-out; }
+/* A thin row under the picture: moving between pictures on the left, zoom on the right. */
+.ap2-viewer-bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 34px; padding: 2px 10px 0; flex-shrink: 0; color: var(--ap2-muted); }
+.ap2-viewer-group { display: flex; align-items: center; gap: 2px; }
+.ap2-viewer-group:last-child { margin-inline-start: auto; }
+.ap2-dialog.ap2-viewer .ap2-viewer-bar .ap2-button { --ap2-h: 32px; width: 32px; min-height: 32px; padding: 0; background: none; color: inherit; font-size: .8em; }
+.ap2-dialog.ap2-viewer .ap2-viewer-bar .ap2-button:hover { background: var(--ap2-1); color: var(--ap2-fg); }
+.ap2-viewer-count { min-width: 44px; text-align: center; font-size: .78em; font-variant-numeric: tabular-nums; }
+.ap2-viewer-zoom { all: unset; box-sizing: border-box; min-width: 48px; padding: 4px 6px; border-radius: 8px; text-align: center; font-size: .76em; font-variant-numeric: tabular-nums; cursor: pointer; }
+.ap2-viewer-zoom:hover { background: var(--ap2-1); color: var(--ap2-fg); }
+.ap2-viewer-zoom:focus-visible { outline: 2px solid color-mix(in srgb, var(--ap2-fg) 50%, transparent); }
 .ap2-viewer-footer { justify-content: center; gap: 4px; padding: 6px 10px calc(8px + env(safe-area-inset-bottom)); }
-.ap2-dialog.ap2-viewer .ap2-viewer-footer > :is(.ap2-button, .ap2-action-menu > .ap2-button) { flex: 1 1 0; max-width: 120px; flex-direction: column; gap: 5px; min-height: 54px; padding: 0 4px; background: none; font-size: .74em; font-weight: normal; }
-.ap2-dialog.ap2-viewer .ap2-viewer-footer > :is(.ap2-button, .ap2-action-menu > .ap2-button):hover { background: var(--ap2-1); }
-.ap2-viewer-footer > :is(.ap2-button, .ap2-action-menu > .ap2-button) > i { font-size: 1.45em; opacity: .95; }
+.ap2-dialog.ap2-viewer :is(.ap2-viewer-footer > .ap2-button, .ap2-viewer-footer > .ap2-action-menu > .ap2-button) { flex: 1 1 0; max-width: 120px; flex-direction: column; gap: 5px; min-height: 54px; padding: 0 4px; background: none; font-size: .74em; font-weight: normal; }
+.ap2-dialog.ap2-viewer :is(.ap2-viewer-footer > .ap2-button, .ap2-viewer-footer > .ap2-action-menu > .ap2-button):hover { background: var(--ap2-1); }
+:is(.ap2-viewer-footer > .ap2-button, .ap2-viewer-footer > .ap2-action-menu > .ap2-button) > i { font-size: 1.45em; opacity: .95; }
 .ap2-viewer .ap2-action-panel { --ap2-fg: #f4f4f5; --ap2-surface: #1f1f23; --ap2-on: #141416; }
 .ap2-viewer-footer .ap2-action-menu { flex: 1 1 0; max-width: 120px; }
 .ap2-dialog.ap2-viewer .ap2-viewer-footer > .ap2-action-menu > .ap2-button { width: 100%; max-width: none; }
-.ap2-viewer-footer .ap2-action-menu > .ap2-button::after { content: '더 보기'; }
 
 /* Illustrations inside chat messages. */
 .ap2-figure { margin: 14px auto; padding: 0; border: 0; width: 100%; background: none; }
@@ -298,6 +325,8 @@ details.ap2-group[open] { padding-bottom: 12px; }
 .ap2-figure .ap2-image-actions .ap2-button:hover { background: #000000d9; }
 /* Touch screens have no hover: keep the two buttons visible, small and translucent. */
 @media (hover: none) { .ap2-image-actions { opacity: 1; } .ap2-figure .ap2-image-actions .ap2-button { width: 34px; min-height: 34px; background: #00000080; } }
+/* Buttons that wait for a first tap on touch screens. */
+@media (hover: none) { .ap2-figure[data-touch=tap] .ap2-image-actions { opacity: 0; pointer-events: none; transition: opacity .15s; } .ap2-figure[data-touch=tap].ap2-show-tools .ap2-image-actions { opacity: 1; pointer-events: auto; } }
 .ap2-image-navigation { display: flex; justify-content: flex-end; align-items: center; gap: 0; margin-top: 2px; color: var(--ap2-muted); }
 .ap2-figure .ap2-image-navigation .ap2-button { width: 30px; min-height: 28px; padding: 0; border-radius: 8px; background: none; color: inherit; font-size: .7em; }
 .ap2-figure .ap2-image-navigation .ap2-button:hover { background: var(--ap2-1); color: var(--ap2-fg); }
@@ -444,8 +473,8 @@ details.ap2-group[open] { padding-bottom: 12px; }
     .ap2-action-panel::backdrop { background: #00000073; }
     .ap2-action-panel::before { content: ''; flex: none; align-self: center; width: 36px; height: 4px; margin-bottom: 8px; border-radius: 2px; background: var(--ap2-3); }
     .ap2-action-panel .ap2-button { min-height: 50px; font-size: .95em; }
-    .ap2-compare { grid-template-columns: 1fr; }
-    .ap2-cast-layout { grid-template-columns: 1fr; gap: 12px; }
+    .ap2-compare { grid-template-columns: minmax(0, 1fr); }
+    .ap2-cast-layout { grid-template-columns: minmax(0, 1fr); gap: 12px; }
     .ap2-cast-editor { display: contents; }
     .ap2-cast-list { grid-row: 1; }
     .ap2-cast-visual { grid-row: 2; }
@@ -458,7 +487,7 @@ details.ap2-group[open] { padding-bottom: 12px; }
     .ap2-chips[role=radiogroup] { flex-wrap: wrap; overflow: visible; margin-inline: 0; padding: 0; }
     .ap2-quick-shape .ap2-segmented { flex: 1 1 100%; }
     .ap2-frame-picker { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-    .ap2-edit-layout, .ap2-edit-columns { grid-template-columns: 1fr; gap: 12px; }
+    .ap2-edit-layout, .ap2-edit-columns { grid-template-columns: minmax(0, 1fr); gap: 12px; }
     .ap2-edit-columns { gap: 0; }
     .ap2-quick-ask { flex-direction: column; align-items: stretch; }
     .ap2-edit-preview { position: static; display: flex; align-items: center; gap: 12px; }

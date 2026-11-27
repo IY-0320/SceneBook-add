@@ -1,21 +1,26 @@
 // Line-based illustration plan: one "key: value" field per line, each scene
 // opened by a line reading "scene". It costs fewer reply tokens than JSON and
 // has no brackets or escapes for a model to get wrong.
-const SCENE_KEYS={camera:'camera',view:'camera',prompt:'prompt',negative:'negative',uc:'negative',quote:'evidence',evidence:'evidence',title:'title',size:'size',ratio:'size'};
+const SCENE_KEYS={camera:'camera',view:'camera',prompt:'prompt',negative:'negative',uc:'negative',quote:'evidence',evidence:'evidence',title:'ignored',layout:'layout',size:'size',ratio:'size',after:'after',paragraph:'after'};
 const CHARACTER_KEYS={action:'action',outfit:'outfit',appearance:'appearance',profile:'profileId',profileid:'profileId'};
 const header=/^[\s#\[\-=*]*scene\s*\d*[\s\]:\-=*]*$/i,field=/^\s*(?:[-*]\s*)?([A-Za-z]+)\s*[:=]\s*(.*)$/;
 const clean=value=>{const v=value.trim();return v.length>1&&v.startsWith('"')&&v.endsWith('"')?v.slice(1,-1).trim():v;};
 export function parsePlanText(input){
     if(typeof input!=='string'||input.length>60000)throw new Error('삽화 지시의 길이가 너무 큽니다.');
-    const scenes=[],repairs=[];let scene=null,character=null,last=null;
-    const open=()=>{scene={characters:[]};character=null;last=null;scenes.push(scene);};
+    const scenes=[],repairs=[];let scene=null,character=null,last=null,panel=null;
+    const open=()=>{scene={characters:[]};character=null;last=null;panel=null;scenes.push(scene);};
     for(const line of input.replace(/\r\n?/g,'\n').split('\n')){
         if(!line.trim()||/^\s*(`{3,}|~{3,})/.test(line))continue;
         if(header.test(line)){open();continue;}
         const match=line.match(field),key=match?.[1].toLowerCase();
+        // A page: each panel line, then the characters visible in that panel.
+        if(match&&key==='panel'){
+            if(!scene)open();
+            panel={text:clean(match[2]),characters:[]};(scene.panels??=[]).push(panel);character=null;last=[panel,'text'];continue;
+        }
         if(match&&['char','character','name'].includes(key)){
             if(!scene)open();
-            character={name:clean(match[2])};scene.characters.push(character);last=null;continue;
+            character={name:clean(match[2])};(panel?panel.characters:scene.characters).push(character);last=null;continue;
         }
         if(match&&character&&['pos','position','xy'].includes(key)){
             const [x,y]=(match[2].match(/-?\d*\.?\d+/g)??[]).map(Number);
@@ -25,14 +30,16 @@ export function parsePlanText(input){
         if(match&&character&&Object.hasOwn(CHARACTER_KEYS,key)){last=[character,CHARACTER_KEYS[key]];character[last[1]]=clean(match[2]);continue;}
         if(match&&Object.hasOwn(SCENE_KEYS,key)){
             const name=SCENE_KEYS[key];
+            // A title line is read and dropped: pictures have no titles.
+            if(name==='ignored'){last=null;continue;}
             // A repeated shared field means the model forgot the "scene" line.
-            if(!scene||(['camera','prompt'].includes(name)&&(scene[name]!==undefined&&scene.characters.length))){if(scene)repairs.push('장면 구분 복구');open();}
+            if(!scene||(['camera','prompt'].includes(name)&&(scene[name]!==undefined&&(scene.characters.length||scene.panels?.length)))){if(scene)repairs.push('장면 구분 복구');open();}
             character=null;last=[scene,name];scene[name]=clean(match[2]);continue;
         }
         // An unlabelled line continues the previous value.
         if(last)last[0][last[1]]=`${last[0][last[1]]} ${line.trim()}`.trim();
     }
-    const usable=scenes.filter(s=>s.prompt||s.camera||s.characters.length);
+    const usable=scenes.filter(s=>s.prompt||s.camera||s.characters.length||s.panels?.length);
     if(!usable.length)throw new Error('삽화 지시에서 장면을 찾지 못했습니다.');
     return{value:{scenes:usable},repairs:[...new Set(repairs)]};
 }

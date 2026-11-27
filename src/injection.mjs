@@ -1,8 +1,10 @@
 import { parsePlanJson, JSON_OUTPUT_RULES } from './plan-json.mjs';
 import { parsePlanText } from './plan-text.mjs';
+import { placementRule, sceneCount } from './placement-rules.mjs';
+import { pageRules, pageFormat, readPage } from './comic.mjs';
 import { orientation } from './framing.mjs';
 import { MODELS, text, normalizeScene } from '../plugin/core.mjs';
-import { writingRule } from './tag-rules.mjs';
+import { writingRule, VISIBLE_DETAIL } from './tag-rules.mjs';
 import { narrativeBlocks, illustrationBlocks, scenePosition, compileCharacter } from './context.mjs';
 
 export const DEFAULT_INJECTION_PROMPT = `Your normal roleplay reply has TWO required parts: the story reply, followed by one <!--scenebook ... --> comment containing its illustration plan. Finish both parts in the final answer. The illustration plan is a required output for this enabled feature, not an optional suggestion. NovelAI consumes the plan directly; describing a picture in prose, promising to generate one or planning it only in hidden reasoning does not produce an illustration.
@@ -95,11 +97,11 @@ const TEXT_OUTPUT_RULES=`REQUIRED FINAL-ANSWER CHECK
 const TEXT_FORMAT_RULES=`Layout check before sending: plain "key: value" lines only, one field per line, each scene opened by a line reading scene. No JSON, braces, quotes around values, bullets, numbering, scene titles or code fence. Keep every value on a single line. Preserve weight syntax as written. Shorten optional descriptions or choose fewer scenes if needed; never leave a scene without its prompt line.`;
 export function illustrationOutputRules(config) {
     if(!usesJsonPlan(config.injectionPrompt)){
-        const placement=config.placement==='inline'?'An optional "quote: exact short phrase from the reply" line under a scene may guide inline placement. Missing or ambiguous placement never prevents illustration; the image can go below the reply.':'Images appear below the reply in scene order. Paragraph numbers and quotes are unnecessary.';
-        return `${TEXT_OUTPUT_RULES}\n\n${ADULT_SCENE_RULES}\n\nScene count: normally 1, at most ${config.maxScenes}. ${placement}\n${TEXT_FORMAT_RULES}\nFinal output must end with a complete <!--scenebook ... --> comment. Write the comment delimiters literally, without backslashes, HTML escaping or a code fence. With this feature enabled, every reply must contain at least one usable scene. Do not finish with only the reply text or an empty plan.`;
+        const placement=placementRule(config,'text');
+        return `${TEXT_OUTPUT_RULES}\n\n${VISIBLE_DETAIL}\n\n${ADULT_SCENE_RULES}\n\n${[pageRules(config,'text')].filter(Boolean).map(x=>`${x}\n\n`).join('')}${sceneCount(config)} ${placement}\n${TEXT_FORMAT_RULES}\nFinal output must end with a complete <!--scenebook ... --> comment. Write the comment delimiters literally, without backslashes, HTML escaping or a code fence. With this feature enabled, every reply must contain at least one usable scene. Do not finish with only the reply text or an empty plan.`;
     }
-    const placement=config.placement==='inline'?'An optional short evidence quote may guide inline placement. Missing or ambiguous placement never prevents illustration; the image can go below the reply.':'Images appear below the reply in scenes-array order. Omit after and evidence: paragraph numbers and exact quotes are unnecessary, even if an earlier template requested them.';
-    return `${ILLUSTRATION_OUTPUT_RULES}\n\n${ADULT_SCENE_RULES}\n\nScene count: normally 1, at most ${config.maxScenes}. ${placement}\n${JSON_OUTPUT_RULES}\nFinal output must end with a complete <!--scenebook JSON --> comment. Write the comment delimiters literally, without backslashes, HTML escaping or a code fence. With this feature enabled, every reply must contain at least one usable scene. Do not finish with only the reply text or an empty scenes array.`;
+    const placement=placementRule(config,'json');
+    return `${ILLUSTRATION_OUTPUT_RULES}\n\n${VISIBLE_DETAIL}\n\n${ADULT_SCENE_RULES}\n\n${[pageRules(config,'json')].filter(Boolean).map(x=>`${x}\n\n`).join('')}${sceneCount(config)} ${placement}\n${JSON_OUTPUT_RULES}\nFinal output must end with a complete <!--scenebook JSON --> comment. Write the comment delimiters literally, without backslashes, HTML escaping or a code fence. With this feature enabled, every reply must contain at least one usable scene. Do not finish with only the reply text or an empty scenes array.`;
 }
 export function validateInjectionTemplate(value = '') {
     text(value, 30000, '주입 프롬프트');
@@ -116,7 +118,7 @@ export function renderInjection(config) {
     };
     const prompt=(validateInjectionTemplate(config.injectionPrompt ?? '') || (config.leanPrompt?LEAN_INJECTION_PROMPT:DEFAULT_INJECTION_PROMPT)).replace(/\{\{(\w+)\}\}/g, (_, key) => values[key]);
     // The short mode sends the template alone, without the long appended checklists.
-    if(config.leanPrompt)return `<image_generation>\n${prompt}\n${config.placement==='inline'?'An optional "quote: exact short phrase from the reply" line under a scene places its image after that paragraph. ':''}End the final answer with the completed <!--scenebook ... --> comment.\n</image_generation>`;
+    if(config.leanPrompt)return `<image_generation>\n${prompt}\n${[VISIBLE_DETAIL,pageRules(config,usesJsonPlan(config.injectionPrompt)?'json':'text'),placementRule(config,'lean'),config.placement==='auto'?sceneCount(config):''].filter(Boolean).map(x=>`${x} `).join('')}End the final answer with the completed <!--scenebook ... --> comment.\n</image_generation>`;
     const contract=`SceneBook is enabled for this reply. Required output: normal roleplay text + one complete illustration ${usesJsonPlan(config.injectionPrompt)?'JSON comment':'plan comment'} in the final answer. EVERY enabled reply includes at least one usable scene; an empty plan is not valid.`;
     return `<image_generation>\nCRITICAL OUTPUT RULE:\n${contract}\n\n${prompt}\n\n${illustrationOutputRules(config)}\n</image_generation>`;
 }
@@ -179,8 +181,12 @@ export function injectedScenes(value, source, config, {onInvalid} = {}) {
         if(!Array.isArray(raw.characters??[]))throw new Error('인물 목록을 읽을 수 없습니다.');
         if((raw.characters?.length??0)>MODELS[config.model].characters)throw new Error(`이 모델의 인물 한도는 ${MODELS[config.model].characters}명입니다.`);
         const positioned=scenePosition(raw,{blocks},config.placement);
-        const scene=normalizeScene({ ...positioned, title: typeof positioned.title==='string'?positioned.title:'', finalPrompt: false, characters: (raw.characters ?? []).map(c => compileCharacter(c, config.library, config.playerMode)).filter(Boolean) }, config.model, Math.max(1,blocks.length)),size=orientation(raw.size);
+        // A page keeps its panels beside the scene; its shared prompt may be left to the layout.
+        const page=pageFormat(config)!=='single'?readPage(raw,c=>compileCharacter(c,config.library,config.playerMode)):null;
+        if(page&&!String(positioned.prompt??'').trim())positioned.prompt=page.layout||page.panels[0].text;
+        const scene=normalizeScene({ ...positioned, title: '', finalPrompt: false, characters: (raw.characters ?? []).map(c => compileCharacter(c, config.library, config.playerMode)).filter(Boolean) }, config.model, Math.max(1,blocks.length)),size=orientation(raw.size);
         if(size)scene.size=size;
+        if(page)Object.assign(scene,{page,pageFormat:pageFormat(config),bubbles:!!config.speechBubbles});
         return scene;
     };
     for(const [index,raw]of value.scenes.entries()){

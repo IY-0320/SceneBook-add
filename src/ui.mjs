@@ -29,14 +29,17 @@ export function iconButton(label, icon, action) {
     b.title=label;b.setAttribute('aria-label',label);return b;
 }
 // Native popovers stay above the scrolling dialog and dismiss on outside click.
-export function actionMenu(actions,label='더 보기') {
+// A menu of further actions. Its button looks like the buttons beside it: icon and
+// label, or the icon alone in a row of icon buttons (`compact`).
+export function actionMenu(actions,label='더 보기',{compact=false}={}) {
     const wrap=el('div','ap2-action-menu'),panel=el('div','ap2-action-panel');panel.setAttribute('popover','auto');panel.setAttribute('role','group');panel.setAttribute('aria-label',label);
-    const trigger=iconButton(label,'fa-ellipsis',()=>{
+    const toggle=()=>{
         if(panel.matches(':popover-open')){panel.hidePopover();return;}
         panel.showPopover();const r=trigger.getBoundingClientRect(),p=panel.getBoundingClientRect();
         panel.style.left=`${Math.max(8,Math.min(r.right-p.width,innerWidth-p.width-8))}px`;
         panel.style.top=`${Math.max(8,r.top>p.height+8?r.top-p.height-6:Math.min(r.bottom+6,innerHeight-p.height-8))}px`;
-    });
+    };
+    const trigger=compact?iconButton(label,'fa-ellipsis',toggle):button(label,toggle,false,'fa-ellipsis');trigger.classList.add('ap2-menu-trigger');
     panel.id=`ap2-menu-${crypto.randomUUID()}`;trigger.setAttribute('aria-controls',panel.id);trigger.setAttribute('aria-expanded','false');
     let events;
     panel.addEventListener('toggle',()=>{
@@ -69,7 +72,9 @@ export function modal(title, subtitle = '') {
     const close=iconButton('닫기','fa-xmark',()=>dialog.close());close.classList.add('ap2-close');header.append(titleBox, close);
     const body = el('div', 'ap2-body'); dialog.append(header, body); document.body.append(dialog);
     dialog.addEventListener('close', () => { placeNotices(); dialog.remove(); previous?.focus(); });
-    for(const event of ['mousedown','pointerdown','click'])dialog.addEventListener(event,e=>e.stopPropagation());
+    // SillyTavern closes its open drawers on any touch or press outside them and swipes
+    // the last reply on arrow keys. Nothing done inside a dialog reaches the page behind it.
+    for(const event of ['mousedown','pointerdown','click','touchstart','touchend','keydown','keyup'])dialog.addEventListener(event,e=>e.stopPropagation());
     dialog.addEventListener('click', e => { if (e.target === dialog) { const r = dialog.getBoundingClientRect(); if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) dialog.close(); } });
     dialog.showModal();placeNotices(); return { dialog, body };
 }
@@ -200,19 +205,6 @@ export function downloadJson(value, name) {
 export function inspect(job) {
     const {body}=modal('생성 기록',`Seed ${job.seed} · ${MODELS[job.config?.model]?.label??job.config?.model??''}`);
     const pre=el('pre','ap2-code',JSON.stringify({scene:job.scene,config:job.config,seed:job.seed,review:job.review},null,2));body.append(pre,button('다운로드',()=>downloadJson(job,'scenebook-image-record.json')));
-}
-export function viewer(job,{actions=[],more=[]}={}) {
-    if(!safeImagePath(job.url))throw new Error('이미지 경로를 확인할 수 없습니다.');
-    const meta=[MODELS[job.config?.model]?.label,job.config?.width&&`${job.config.width} × ${job.config.height}`,job.seed!==undefined&&`Seed ${job.seed}`].filter(Boolean).join(' · ');
-    const label=sceneLabel(job.scene)||'삽화',{dialog,body}=modal(label,meta);dialog.classList.add('ap2-viewer');
-    const img=el('img','ap2-full');img.src=job.url;img.alt=label;body.append(img);
-    const footer=el('footer','ap2-footer ap2-viewer-footer');
-    const run=item=>{if(item.close)dialog.close();return item.run();};
-    for(const item of actions){const b=button(item.label,()=>run(item),false,item.icon??'');if(item.danger)b.classList.add('ap2-danger');footer.append(b);}
-    const download=el('a','ap2-button');download.href=job.url;download.download=`${job.id}.png`;download.title='원본 PNG 저장';download.setAttribute('aria-label','원본 PNG 저장');
-    const glyph=el('i','fa-solid fa-download');glyph.setAttribute('aria-hidden','true');download.append(glyph,el('span','','저장'));footer.append(download);
-    if(more.length)footer.append(actionMenu(more.map(item=>({...item,run:()=>run(item)}))));
-    dialog.append(footer);return dialog;
 }
 export function compareVersions(versions,currentIndex){
     const {body}=modal('결과 비교');
