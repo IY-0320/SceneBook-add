@@ -1,9 +1,20 @@
 import { MODELS, safeImagePath } from '../plugin/core.mjs';
 import { CAMERA_TAGS, ORIENTATIONS, LOOKS, hasCameraTag, toggleCameraTag } from './framing.mjs';
 import { presetStyle } from './presets.mjs';
+import { viewpointIssue, fromAbove } from './viewpoint.mjs';
 import { PAGE_FORMATS, PAGE_GRIDS, STRIP_HEIGHTS, gridFor } from './comic.mjs';
 import { el, button, field, modal, segmented } from './ui.mjs';
 
+// Under a camera field: a viewpoint no camera can take, in one sentence, with its fix below.
+// `read` returns the scene as it stands; the warning follows every edit.
+export function viewWarning(camera,read){
+    const wrap=el('div','ap2-view-warning'),message=el('p','ap2-note ap2-warning');wrap.hidden=true;
+    const fix=button('위에서 보기로',()=>{camera.input.value=fromAbove(camera.read());camera.input.dispatchEvent(new Event('input',{bubbles:true}));update();},false,'fa-arrow-down');
+    wrap.append(message,fix);
+    const update=()=>{const issue=viewpointIssue(read());wrap.hidden=!issue;if(issue)message.textContent=issue.message;};
+    camera.input.addEventListener('input',update);
+    return{wrap,update};
+}
 // Camera shortcuts: one viewpoint and one shot size at a time.
 export function cameraChips(camera){
     const chips=el('div','ap2-chips');chips.setAttribute('role','group');chips.setAttribute('aria-label','구도 바로 고르기');
@@ -61,7 +72,10 @@ export function quickEdit({scene,page=null,config,seed,imageUrl,onRewrite,onGene
     const shape=segmented('화면 비율',[['','그대로'],...ORIENTATIONS.slice(1)],size,value=>{size=value;}),shapeRow=el('div','ap2-quick-shape');shapeRow.append(el('span','','화면 비율'),shape.wrap);
     // The same seed keeps the composition as close as it can, to judge a prompt change alone.
     const seedChoice=segmented('시드',[['new','새 시드'],['same','같은 시드']],'new'),seedRow=el('div','ap2-quick-shape');seedRow.append(el('span','','시드'),seedChoice.wrap);seedRow.title='같은 시드는 구도를 최대한 유지한 채 프롬프트 변화만 확인할 때 씁니다.';seedRow.hidden=seed===undefined;
-    cameraBox.append(chips.wrap,camera.wrap,shapeRow,seedRow);
+    // The viewpoint is checked against the scene as edited: name, chips, field, then any warning.
+    const warning=viewWarning(camera,()=>{const final=!!draft.finalPrompt;return final||panelFields.length?null:{...draft,camera:camera.read(),prompt:prompt.read(),characters:(draft.characters??[]).map((c,i)=>({...c,prompt:cast[i]?.read()??c.prompt}))};});
+    prompt.input.addEventListener('input',warning.update);
+    cameraBox.append(chips.wrap,camera.wrap,warning.wrap,shapeRow,seedRow);
     const peopleBox=block('인물','인물마다 외형·복장·행동을 따로 적습니다.'),people=el('div','ap2-quick-people');peopleBox.append(people);
 
     function fill(){
@@ -98,9 +112,9 @@ export function quickEdit({scene,page=null,config,seed,imageUrl,onRewrite,onGene
         const seen=new Map();
         cast=panels?[]:(draft.characters??[]).map((c,i)=>{
             const name=c.name||`인물 ${i+1}`,n=(seen.get(name)??0)+1;seen.set(name,n);
-            const f=field(flatPage?`${name} · ${n}번째로 나오는 칸`:name,c.prompt??'',{multiline:true,rows:3});people.append(f.wrap);return f;
+            const f=field(flatPage?`${name} · ${n}번째로 나오는 칸`:name,c.prompt??'',{multiline:true,rows:3});f.input.addEventListener('input',()=>warning.update());people.append(f.wrap);return f;
         });
-        peopleBox.hidden=!cast.length;chips.sync();
+        peopleBox.hidden=!cast.length;chips.sync();warning.update();
     }
     // The edited scene, and the picture-level prompts that go with it.
     function read(){

@@ -1,13 +1,14 @@
 import { MODELS, buildPayload, normalizeScene, usableReferences } from '../plugin/core.mjs';
 import { activePreset } from './presets.mjs';
 import { PAGE_FORMATS, PAGE_GRIDS, STRIP_HEIGHTS, gridFor, compilePage } from './comic.mjs';
+import { compileScene } from './prompt-order.mjs';
 import { positionEditor } from './position.mjs';
 import { sceneBundle, readSceneBundle } from './editor-data.mjs';
 import { showGuide } from './guide.mjs';
 import { generationEditor } from './generation-ui.mjs';
 import { paragraphPosition } from './paragraph-ui.mjs';
 import { ORIENTATIONS, LOOKS, withLook } from './framing.mjs';
-import { cameraChips } from './quick-edit.mjs';
+import { cameraChips, viewWarning } from './quick-edit.mjs';
 import { el, button, field, addField, readFields, modal, notice, confirmAction, downloadJson, actionMenu, segmented } from './ui.mjs';
 
 export function composer({context,scenes,config,onAnalyze,onGenerate,onDraft,previewUrl}){
@@ -88,7 +89,10 @@ export function composer({context,scenes,config,onAnalyze,onGenerate,onDraft,pre
             });
         }
         const cameraBox=part(sceneSide,page?'화면 비율':'구도 · 화면 비율');
-        if(!exact&&!page){const camera=bare(bind(cameraBox,'camera','구도',{placeholder:'예: from side, upper body'}));cameraBox.insertBefore(cameraChips(camera).wrap,camera.wrap);}
+        if(!exact&&!page){
+            const camera=bare(bind(cameraBox,'camera','구도',{placeholder:'예: from side, upper body'}));cameraBox.insertBefore(cameraChips(camera).wrap,camera.wrap);
+            const warning=viewWarning(camera,()=>scene());camera.wrap.after(warning.wrap);warning.update();
+        }
         const shape=segmented('화면 비율',ORIENTATIONS,scene().size??'',value=>{snapshot();if(value)scene().size=value;else delete scene().size;undoButton.disabled=false;}),shapeRow=el('div','ap2-quick-shape');shapeRow.append(el('span','','화면 비율'),shape.wrap);cameraBox.append(shapeRow);
         if(!exact){
             // The shared prompts of this job. They start from the saved defaults or from the picture being edited.
@@ -129,6 +133,7 @@ export function composer({context,scenes,config,onAnalyze,onGenerate,onDraft,pre
         let payload,pageCharacters=null;try{
             let sent=scene(),settings={...withLook(config,config.look??''),references:usableReferences(config.model,config.references??[])};
             if(sent.page?.panels?.length){({scene:sent,config:settings}=compilePage(sent,{...settings,speechBubbles:!!sent.bubbles}));pageCharacters=sent.characters;}
+            else sent=compileScene(sent,settings);
             payload=buildPayload(sent,settings,config.seed===-1?0:config.seed);
         }catch(e){content.append(el('p','ap2-muted',e.message));return;}
         const prompt=field('최종 장면 프롬프트',payload.input,{multiline:true,rows:7}),negative=field('최종 제외 요소',payload.parameters.negative_prompt,{multiline:true,rows:4});content.append(prompt.wrap,negative.wrap);

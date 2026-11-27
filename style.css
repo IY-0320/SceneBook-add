@@ -424,6 +424,10 @@ details.ap2-group[open] { padding-bottom: 12px; }
 .ap2-quick-shape .ap2-segmented { flex: 0 1 340px; }
 .ap2-quick-people .ap2-field > .ap2-field-label { font-weight: 600; color: var(--ap2-fg); }
 /* Comic page panels in the quick editor: one group per panel, a hairline between them. */
+/* A viewpoint warning: one sentence, the fix right under it. */
+.ap2-view-warning { display: grid; justify-items: start; gap: 6px; margin: 6px 0 4px; }
+.ap2-view-warning[hidden] { display: none; }
+.ap2-view-warning > .ap2-note { margin: 0; width: 100%; }
 .ap2-quick-panel { padding: 10px 0 2px; border-top: 1px solid color-mix(in srgb, var(--ap2-fg) 12%, transparent); }
 .ap2-quick-panel:first-child { border-top: 0; padding-top: 4px; }
 .ap2-quick-panel > h4 { margin: 0 0 2px; font-size: .9em; font-weight: 700; color: var(--ap2-fg); }

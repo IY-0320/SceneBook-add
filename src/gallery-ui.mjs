@@ -95,7 +95,7 @@ export async function galleryPage(page,{api,open,isCurrent,forced}) {
         const shown=matches.filter(ready);
         const view=openViewer({items:shown,index:Math.max(0,shown.indexOf(job)),describe:item=>({actions:[
             {label:'삽입',icon:'fa-plus',close:true,run:()=>{ensureScope();return api.recover(item);}},
-            {label:'편집',icon:'fa-sliders',close:true,run:()=>{ensureScope();return api.importScene(item.pageScene??item.scene,item.config);}},
+            {label:'편집',icon:'fa-sliders',close:true,run:()=>{ensureScope();return api.importScene(item.pageScene??item.plainScene??item.scene,item.config);}},
         ],more:[
             {label:'AI 검수',icon:'fa-magnifying-glass',run:()=>api.review(item)},
             {label:'생성 기록',icon:'fa-file-lines',run:()=>inspect(item)},

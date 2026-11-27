@@ -29,6 +29,8 @@ import { el, button, chevron, notice, composer, inspect, modal, compareVersions,
 import { openViewer } from './src/viewer.mjs';
 import { activePreset, inPresetStyle } from './src/presets.mjs';
 import { readAnalysisReply, analysisLength } from './src/analysis-reply.mjs';
+import { compileScene } from './src/prompt-order.mjs';
+import { fixViewpoint } from './src/viewpoint.mjs';
 import { PAGE_FORMATS, pageFormat, pagesAllowed, readPage, compilePage, cutMode, withCuts } from './src/comic.mjs';
 
 const KEY = 'autopic2';
@@ -213,6 +215,7 @@ async function analyze(target,existing=[],direction='',revisionScope='all',persi
                 }).filter(Boolean)},target.config.model,target.snapshot.blocks.length);
                 if(existing.length&&!existing.some(x=>x.after===scene.after))throw new Error('부분 수정에서 삽입 위치가 바뀌었습니다.');
                 const size=orientation(input.size);if(size)scene.size=size;else if(existing[i]?.size)scene.size=existing[i].size;
+                scene.camera=fixViewpoint(scene).camera;
                 if(page)Object.assign(scene,{page,pageFormat:pageFormat(target.config),bubbles:!!target.config.speechBubbles});
                 if(cutMode(target.config))scene.cut=true;
                 accepted.push(existing.length?mergeRevision(existing[i],scene,revisionScope):scene);
@@ -299,7 +302,7 @@ async function enqueue(target,scenes,slotId=null,overrideConfig=null) {
         // The plan may ask for a portrait, landscape or square canvas for this scene.
         // A cut's canvas shape is part of the episode's rhythm, so it applies even without automatic sizing.
         const shape=!overrideConfig&&(settings().autoSize||scenes[position].cut)?orientation(scenes[position].size):'';
-        let frozen={...generationConfig(rendered),...(shape?sizeFor(c,shape):{})},sent=scene,pageScene=null;const id=crypto.randomUUID();
+        let frozen={...generationConfig(rendered),...(shape?sizeFor(c,shape):{})},sent=scene,pageScene=null,plainScene=null;const id=crypto.randomUUID();
         // A page is sent as one finished prompt, with each character placed in every panel they appear in.
         // The panels themselves stay with the picture, so it can be edited panel by panel later.
         const page=scenes[position].page;
@@ -307,6 +310,9 @@ async function enqueue(target,scenes,slotId=null,overrideConfig=null) {
             pageScene={...scene,page:structuredClone(page),pageFormat:scenes[position].pageFormat,bubbles:!!scenes[position].bubbles};
             const compiled=compilePage(pageScene,{...frozen,speechBubbles:pageScene.bubbles});sent=compiled.scene;frozen=generationConfig(compiled.config);
         }
+        // An ordinary scene is sent in SceneBook's own order (subject count first, no repeated
+        // or contradicting tags); the scene as written stays with the picture for editing.
+        else if(!scene.finalPrompt){plainScene=scene;sent=compileScene(scene,frozen);}
         const added=queue.add(key,async()=>{
             let progress;
             try{
@@ -316,7 +322,7 @@ async function enqueue(target,scenes,slotId=null,overrideConfig=null) {
             sessionRequests++;
             const label=sceneLabel(scene);
             progress=progressNotice(`삽화 생성 중${checked.length>1?` (${position+1}/${checked.length})`:''}${label?` · ${label}`:''}`);
-            const job=await request('generate',{id,scene:sent,config:frozen});if(presetName)job.preset=presetName;if(pageScene)job.pageScene=pageScene;if(scenes[position].cut)job.cut=true;const inserted=await attach(target,job,slotId);setWorkflowStatus('삽화 생성 완료');
+            const job=await request('generate',{id,scene:sent,config:frozen});if(presetName)job.preset=presetName;if(pageScene)job.pageScene=pageScene;if(plainScene)job.plainScene=plainScene;if(scenes[position].cut)job.cut=true;const inserted=await attach(target,job,slotId);setWorkflowStatus('삽화 생성 완료');
             // Several pictures of one reply report once, when the last is in.
             if(inserted&&position===checked.length-1)notify(checked.length>1?`삽화 ${checked.length}장 생성 완료`:`삽화 생성 완료${label?` · ${label}`:''}`,{kind:'success'});
             }catch(e){if(['NO_KEY','NAI_401','NAI_402','NAI_403','NAI_429','COOLDOWN'].includes(e.code))queue.paused=true;setWorkflowStatus(e.message);notice(`삽화 생성 실패 · ${e.message}`,true);throw e;}
@@ -414,6 +420,9 @@ function chooseVersion(index,slot,selected){
 }
 // Drawing a picture again uses the art style applied now, when a preset is applied,
 // with the picture's own size and scene. Otherwise it keeps the picture's own style.
+// The scene a picture was made from, ready to edit or draw again: a page with its
+// panels, or the scene as written before SceneBook put the prompt in order.
+function sourceScene(job){return job.pageScene??job.plainScene??job.scene;}
 function restyled(job,seed=-1){
     const preset=activePreset(settings());
     return{...(preset?inPresetStyle(job.config,preset):{...job.config,presetName:job.preset??''}),seed};
@@ -454,12 +463,12 @@ function openIllustration(index,slot) {
     const ensureCurrent=()=>{if(!current(target)||slot.deleted)throw new Error('대상 답변이 바뀌었습니다. 이미지를 다시 열어 주세요.');return context().chat.indexOf(target.message);};
     // Every action works on the version on screen, which is also the one the chat shows.
     const describe=job=>({
-        actions:[{label:'수정',icon:'fa-pen',close:true,run:()=>{ensureCurrent();return openQuickEdit(index,slot);}},{label:'재생성',icon:'fa-rotate-right',close:true,run:()=>{ensureCurrent();return enqueue(target,[job.scene],slot.id,restyled(job));}}],
+        actions:[{label:'수정',icon:'fa-pen',close:true,run:()=>{ensureCurrent();return openQuickEdit(index,slot);}},{label:'재생성',icon:'fa-rotate-right',close:true,run:()=>{ensureCurrent();return enqueue(target,[sourceScene(job)],slot.id,restyled(job));}}],
         more:[
             {label:'AI 검수',icon:'fa-magnifying-glass',run:()=>reviewImage(job)},
             {label:'생성 기록',icon:'fa-file-lines',run:()=>inspect(job)},
             ...(slot.versions.length>1?[{label:'버전 비교',icon:'fa-columns',run:()=>compareVersions(slot.versions,slot.selected)}]:[]),
-            {label:'같은 시드로 생성',icon:'fa-rotate-right',run:()=>{ensureCurrent();return enqueue(target,[job.scene],slot.id,{...job.config,seed:job.seed});}},
+            {label:'같은 시드로 생성',icon:'fa-rotate-right',run:()=>{ensureCurrent();return enqueue(target,[sourceScene(job)],slot.id,{...job.config,seed:job.seed});}},
             {label:'기본 시드로 저장',icon:'fa-thumbtack',run:()=>{saveSettings({...settings(),seed:job.seed});notice(`Seed ${job.seed} 저장됨`);}},
             {label:'삭제',icon:'fa-trash-can',danger:true,run:async()=>{if(await deleteIllustration(target,slot))view.dialog.close();}},
         ],
@@ -471,7 +480,7 @@ function openQuickEdit(index,slot) {
     if(!viewState(target,false)?.slots.includes(slot)||slot.deleted)throw new Error('대상 답변이 바뀌었습니다. 이미지를 다시 열어 주세요.');
     const check=()=>{if(!current(target)||slot.deleted)throw new Error('대상 답변이 바뀌었습니다. 이미지를 다시 열어 주세요.');};
     // The picture's own prompts, with its look taken back out so it is shown and applied once.
-    quickEdit({scene:job.scene,page:job.pageScene,config:{...editableConfig(job.config),presets:settings().presets??[],presetName:job.preset??''},seed:job.seed,imageUrl:job.url,
+    quickEdit({scene:job.plainScene??job.scene,page:job.pageScene,config:{...editableConfig(job.config),presets:settings().presets??[],presetName:job.preset??''},seed:job.seed,imageUrl:job.url,
         onRewrite:async(scene,request)=>{check();return(await analyze(target,[{...scene,after:Math.min(scene.after,target.snapshot.blocks.length)}],request,'all',false))[0];},
         onGenerate:(scene,{size,keepSeed,saveDefault,...edits})=>{
             check();
@@ -523,7 +532,7 @@ function renderMessage(index) {
         const targetForImage=()=>{const target=capture(index);if(!viewState(target,false)?.slots.includes(slot)||slot.deleted)throw new Error('대상 답변이 바뀌었습니다.');return target;};
         for(const [label,icon,action]of [
             ['수정','fa-pen',()=>{targetForImage();return openQuickEdit(index,slot);}],
-            ['재생성','fa-rotate-right',()=>enqueue(targetForImage(),[job.pageScene??job.scene],slot.id,restyled(job))],
+            ['재생성','fa-rotate-right',()=>enqueue(targetForImage(),[sourceScene(job)],slot.id,restyled(job))],
         ]){const b=button('',()=>{toolsShown.get(figure)?.();return action();},false,icon);b.title=label==='재생성'?'같은 프롬프트, 새 시드로 다시 그리기':'프롬프트를 고쳐서 다시 그리기';b.setAttribute('aria-label',label);overlay.append(b);}
         // Cuts of one episode run edge to edge, one under another, without frames.
         const cut=!!(slot.cut||job.cut);if(cut)figure.classList.add('ap2-cut');
