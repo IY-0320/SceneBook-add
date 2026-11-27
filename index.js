@@ -29,7 +29,7 @@ import { el, button, chevron, notice, composer, inspect, modal, compareVersions,
 import { openViewer } from './src/viewer.mjs';
 import { activePreset, inPresetStyle } from './src/presets.mjs';
 import { readAnalysisReply, analysisLength } from './src/analysis-reply.mjs';
-import { PAGE_FORMATS, pageFormat, pagesAllowed, readPage, compilePage } from './src/comic.mjs';
+import { PAGE_FORMATS, pageFormat, pagesAllowed, readPage, compilePage, cutMode, withCuts } from './src/comic.mjs';
 
 const KEY = 'autopic2';
 // SillyTavern: in-chat injection, depth 0, System role.
@@ -55,8 +55,9 @@ function cleanSettings(value) {
     if(c.analysisLength!==0)number(c.analysisLength,1000,128000,'분석 답 길이',true);
     if(!['tap','always'].includes(c.imageTools))c.imageTools='tap';
     if(!PAGE_FORMATS.some(([id])=>id===c.pageFormat))c.pageFormat='single';
-    if(![0,2,3,4].includes(c.panelCount))c.panelCount=0;
+    if(![0,2,3,4,5,6].includes(c.panelCount))c.panelCount=0;
     c.speechBubbles=c.speechBubbles===true;
+    if(!['story','stack'].includes(c.cutLayout))c.cutLayout='story';
     c.galleryHidden=Array.isArray(c.galleryHidden)?[...new Set(c.galleryHidden.filter(id=>typeof id==='string'&&id.length<=100))].slice(-5000):[];
     if(!['off','review','generate'].includes(c.automatic))throw new Error('자동 처리 설정을 확인하세요.');
     if(!['quick','precise'].includes(c.analysisMode))throw new Error('분석 모드를 확인하세요.');
@@ -135,7 +136,7 @@ function scope() {
 }
 function lastIndex() { return context().chat.findLastIndex(m=>!m.is_user&&!m.is_system&&String(m.mes??'').trim()); }
 function capture(index=lastIndex()) {
-    const c=context(), message=c.chat[index], config=cleanSettings(visualSettings());
+    const c=context(), message=c.chat[index], config=withCuts(cleanSettings(visualSettings()));
     if(!c.getCurrentChatId())throw new Error('삽화를 넣을 캐릭터 채팅을 먼저 열어 주세요. 시작 안내문에는 삽화를 만들지 않습니다.');
     const snapshot=createContext(c.chat,index,config);
     if(!snapshot.blocks.length)throw new Error('삽화를 넣을 본문 구간이 없습니다.');
@@ -210,6 +211,7 @@ async function analyze(target,existing=[],direction='',revisionScope='all',persi
                 if(existing.length&&!existing.some(x=>x.after===scene.after))throw new Error('부분 수정에서 삽입 위치가 바뀌었습니다.');
                 const size=orientation(input.size);if(size)scene.size=size;else if(existing[i]?.size)scene.size=existing[i].size;
                 if(page)Object.assign(scene,{page,pageFormat:pageFormat(target.config),bubbles:!!target.config.speechBubbles});
+                if(cutMode(target.config))scene.cut=true;
                 accepted.push(existing.length?mergeRevision(existing[i],scene,revisionScope):scene);
             }catch(e){errors.push(`${i+1}번: ${e.message}`);if(existing[i])accepted.push(structuredClone(existing[i]));}
         }
@@ -261,7 +263,7 @@ async function attach(target,job,slotId=null) {
     if(!current(target)){notice('그림을 완성했습니다. 대상 답변이 바뀌어 갤러리·복구에 보관했습니다.');return false;}
     const state=viewState(target),scene=job.scene;
     let slot=state.slots.find(s=>s.id===slotId);
-    if(!slot){slot={id:slotId??crypto.randomUUID(),anchor:validateAnchor(scene,target.snapshot,target.config.placement),versions:[],selected:0};state.slots.push(slot);}
+    if(!slot){slot={id:slotId??crypto.randomUUID(),anchor:validateAnchor(scene,target.snapshot,target.config.placement),versions:[],selected:0,...(job.cut?{cut:true,placement:target.config.placement}:{})};state.slots.push(slot);}
     if(slot.versions.some(v=>v.id===job.id))return;
     if(slot.deleted){slot.versions.push(job);await saveMessage(target);notice('이미 삭제한 삽화의 생성 결과는 갤러리에 보관했습니다.');return false;}
     slot.versions.push(job);slot.selected=slot.versions.length-1;slot.hidden=false;
@@ -293,7 +295,8 @@ async function enqueue(target,scenes,slotId=null,overrideConfig=null) {
     for(const [position,scene] of checked.entries()){
         const key=`${target.scope}:${target.id}:${target.key}:${slotId??`scene-${position}`}`;
         // The plan may ask for a portrait, landscape or square canvas for this scene.
-        const shape=!overrideConfig&&settings().autoSize?orientation(scenes[position].size):'';
+        // A cut's canvas shape is part of the episode's rhythm, so it applies even without automatic sizing.
+        const shape=!overrideConfig&&(settings().autoSize||scenes[position].cut)?orientation(scenes[position].size):'';
         let frozen={...generationConfig(rendered),...(shape?sizeFor(c,shape):{})},sent=scene,pageScene=null;const id=crypto.randomUUID();
         // A page is sent as one finished prompt, with each character placed in every panel they appear in.
         // The panels themselves stay with the picture, so it can be edited panel by panel later.
@@ -312,8 +315,9 @@ async function enqueue(target,scenes,slotId=null,overrideConfig=null) {
             sessionRequests++;
             const label=sceneLabel(scene);
             progress=progressNotice(`삽화 생성 중${checked.length>1?` (${position+1}/${checked.length})`:''}${label?` · ${label}`:''}`);
-            const job=await request('generate',{id,scene:sent,config:frozen});if(presetName)job.preset=presetName;if(pageScene)job.pageScene=pageScene;const inserted=await attach(target,job,slotId);setWorkflowStatus('삽화 생성 완료');
-            if(inserted)notify(`삽화 생성 완료${label?` · ${label}`:''}`,{kind:'success'});
+            const job=await request('generate',{id,scene:sent,config:frozen});if(presetName)job.preset=presetName;if(pageScene)job.pageScene=pageScene;if(scenes[position].cut)job.cut=true;const inserted=await attach(target,job,slotId);setWorkflowStatus('삽화 생성 완료');
+            // Several pictures of one reply report once, when the last is in.
+            if(inserted&&position===checked.length-1)notify(checked.length>1?`삽화 ${checked.length}장 생성 완료`:`삽화 생성 완료${label?` · ${label}`:''}`,{kind:'success'});
             }catch(e){if(['NO_KEY','NAI_401','NAI_402','NAI_403','NAI_429','COOLDOWN'].includes(e.code))queue.paused=true;setWorkflowStatus(e.message);notice(`삽화 생성 실패 · ${e.message}`,true);throw e;}
             finally{progress?.close();}
         },sceneHint(scene),{automatic:!!target.automaticCandidate,referenceIds:(frozen.references??[]).map(ref=>ref.id)});
@@ -359,7 +363,7 @@ async function manualGenerate(target,mode,text='',size='',format=''){
         scenes=[{title:'',prompt:text,camera:'',negative:'',after:target.snapshot.blocks.at(-1).index,evidence:'',characters:[]}];
     }else{
         // A format picked here applies to this reply only.
-        if(format&&pagesAllowed(target.config))target.config={...target.config,pageFormat:format};
+        if(format&&(pagesAllowed(target.config)||['single','cuts'].includes(format)))target.config=withCuts({...target.config,pageFormat:format});
         scenes=await analyze(target,[],text);
         if(!scenes.length)throw new Error('AI가 이 답변에서 그릴 장면을 찾지 못했습니다. 요청 사항을 적거나 직접 쓰기로 만들어 보세요.');
     }
@@ -371,7 +375,7 @@ async function manualGenerate(target,mode,text='',size='',format=''){
 function openManual(index=lastIndex()){
     const target=capture(index);
     manualDialog({excerpt:target.snapshot.source.replace(/<!--[\s\S]*?-->/g,'').trim().slice(0,240),hasPlan:!!storedScenes(target),
-        pages:pagesAllowed(target.config)?{value:pageFormat(target.config)}:null,
+        pages:{value:cutMode(target.config)?'cuts':pageFormat(target.config),formats:PAGE_FORMATS.filter(([id])=>pagesAllowed(target.config)||['single','cuts'].includes(id))},
         onGenerate:({mode,text,size,format})=>manualGenerate(target,mode,text,size,format),
         onEdit:()=>{if(!current(target))throw new Error('대상 답변이 바뀌었습니다. 다시 열어 주세요.');return compose(context().chat.indexOf(target.message));}});
 }
@@ -520,7 +524,9 @@ function renderMessage(index) {
             ['수정','fa-pen',()=>{targetForImage();return openQuickEdit(index,slot);}],
             ['재생성','fa-rotate-right',()=>enqueue(targetForImage(),[job.pageScene??job.scene],slot.id,restyled(job))],
         ]){const b=button('',()=>{toolsShown.get(figure)?.();return action();},false,icon);b.title=label==='재생성'?'같은 프롬프트, 새 시드로 다시 그리기':'프롬프트를 고쳐서 다시 그리기';b.setAttribute('aria-label',label);overlay.append(b);}
-        imageWrap.append(open,overlay);figure.append(imageWrap);applyFrame(figure,imageWrap,open,job.config.width,job.config.height,config);
+        // Cuts of one episode run edge to edge, one under another, without frames.
+        const cut=!!(slot.cut||job.cut);if(cut)figure.classList.add('ap2-cut');
+        imageWrap.append(open,overlay);figure.append(imageWrap);applyFrame(figure,imageWrap,open,job.config.width,job.config.height,cut?{...config,frame:'none',frameWide:''}:config);
         if(slot.versions.length>1){
             const change=delta=>{targetForImage();chooseVersion(index,slot,slot.selected+delta);};
             const navigation=el('div','ap2-image-navigation');navigation.setAttribute('role','group');navigation.setAttribute('aria-label','삽화 버전 전환');
@@ -529,7 +535,8 @@ function renderMessage(index) {
             navigation.append(back,el('span','ap2-version-count',`${slot.selected+1}/${slot.versions.length}`),next);
             figure.append(navigation);
         }
-        const anchor=byParagraph(config.placement)?displayParagraph(paragraphs(),slot.anchor,sourceParagraphs()):null;
+        // Cuts stay where they were planned: after their paragraphs, or all below the reply.
+        const anchor=byParagraph(slot.cut&&slot.placement?slot.placement:config.placement)?displayParagraph(paragraphs(),slot.anchor,sourceParagraphs()):null;
         if(anchor){(inlineTails.get(anchor)??anchor).after(figure);inlineTails.set(anchor,figure);}else content.append(figure);
         nodes.push(figure);
     }
@@ -582,7 +589,7 @@ function injectPrompt(type,options,dryRun){
     const c=visualSettings();
     if(dryRun||['quiet','impersonate'].includes(type)||!context().getCurrentChatId()||!c.promptInjection||c.automatic==='off')return;
     if(!context().setExtensionPrompt){setWorkflowStatus('현재 SillyTavern에서 프롬프트 주입을 지원하지 않습니다.');return;}
-    setIllustrationPrompt(renderInjection(c));
+    setIllustrationPrompt(renderInjection(withCuts(c)));
     setWorkflowStatus('삽화 프롬프트 등록됨 · 깊이 0 · System · 답변 기다리는 중');
 }
 async function processAutomatic(candidate) {

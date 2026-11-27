@@ -1,7 +1,7 @@
 import { parsePlanJson, JSON_OUTPUT_RULES } from './plan-json.mjs';
 import { parsePlanText } from './plan-text.mjs';
 import { placementRule, sceneCount } from './placement-rules.mjs';
-import { pageRules, pageFormat, readPage } from './comic.mjs';
+import { pageRules, pageFormat, readPage, cutMode } from './comic.mjs';
 import { orientation } from './framing.mjs';
 import { MODELS, text, normalizeScene } from '../plugin/core.mjs';
 import { writingRule, VISIBLE_DETAIL } from './tag-rules.mjs';
@@ -187,6 +187,7 @@ export function injectedScenes(value, source, config, {onInvalid} = {}) {
         const scene=normalizeScene({ ...positioned, title: '', finalPrompt: false, characters: (raw.characters ?? []).map(c => compileCharacter(c, config.library, config.playerMode)).filter(Boolean) }, config.model, Math.max(1,blocks.length)),size=orientation(raw.size);
         if(size)scene.size=size;
         if(page)Object.assign(scene,{page,pageFormat:pageFormat(config),bubbles:!!config.speechBubbles});
+        if(cutMode(config))scene.cut=true;
         return scene;
     };
     for(const [index,raw]of value.scenes.entries()){

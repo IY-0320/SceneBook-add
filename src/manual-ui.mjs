@@ -18,7 +18,7 @@ export function manualDialog({excerpt,hasPlan,onGenerate,onEdit,pages=null}){
     choice.wrap.classList.add('ap2-manual-modes');
     const shape=segmented('화면 비율',ORIENTATIONS,size,value=>{size=value;}),shapeRow=el('div','ap2-quick-shape');shapeRow.append(el('span','','화면 비율'),shape.wrap);
     // When the AI writes the scene, this reply may become a page of panels. V5 only.
-    const formatChoice=segmented('그림 형식',PAGE_FORMATS.map(([id,label])=>[id,label]),format,value=>{format=value;}),formatRow=el('div','ap2-quick-shape');formatRow.append(el('span','','그림 형식'),formatChoice.wrap);
+    const formatChoice=segmented('그림 형식',(pages?.formats??PAGE_FORMATS).map(([id,label])=>[id,label]),format,value=>{format=value;}),formatRow=el('div','ap2-quick-shape');formatRow.append(el('span','','그림 형식'),formatChoice.wrap);
     function sync(){
         help.textContent=MODES[mode][1];text.wrap.hidden=mode==='plan';formatRow.hidden=!pages||mode!=='ai';
         label.textContent=mode==='ai'?'AI에게 전할 요청 사항 (선택)':'장면 프롬프트';

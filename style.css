@@ -67,6 +67,9 @@
 :where(#ap2-settings, .ap2-dialog) :is(.ap2-segment, .ap2-editor-tabs .ap2-button):hover { color: var(--ap2-fg); }
 :where(#ap2-settings, .ap2-dialog) :is(.ap2-segment[aria-checked=true], .ap2-editor-tabs .ap2-button[aria-pressed=true]) { color: var(--ap2-fg); font-weight: 600; background: var(--ap2-surface); box-shadow: 0 1px 2px #0000002e, 0 0 0 1px var(--ap2-line); }
 .ap2-segment:disabled { opacity: .35; cursor: default; }
+.ap2-segmented.ap2-format-choice { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); width: 100%; }
+.ap2-format-choice > .ap2-segment { grid-column: span 2; min-width: 0; }
+.ap2-format-choice > .ap2-segment:nth-child(-n+2) { grid-column: span 3; }
 .ap2-editor-tabs { margin: 10px 0 14px; }
 
 /* The main window: a menu beside the page it opens. Only the page scrolls. */
@@ -317,6 +320,10 @@ details.ap2-group[open] { padding-bottom: 12px; }
 
 /* Illustrations inside chat messages. */
 .ap2-figure { margin: 14px auto; padding: 0; border: 0; width: 100%; background: none; }
+/* Webtoon cuts: square corners and a narrow white gap, so several read as one strip. */
+.ap2-figure.ap2-cut { margin: 12px auto; }
+.ap2-figure.ap2-cut + .ap2-figure.ap2-cut { margin-top: -6px; }
+.ap2-figure.ap2-cut .ap2-image-wrap { border-radius: 0; }
 .ap2-figure img { display: block; width: 100%; height: auto; object-fit: contain; }
 .ap2-image-wrap { position: relative; border-radius: 12px; overflow: hidden; }
 .ap2-image-open { all: unset; box-sizing: border-box; display: block; width: 100%; min-width: 0; line-height: 0; cursor: zoom-in; -webkit-tap-highlight-color: transparent; }

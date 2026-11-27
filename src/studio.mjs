@@ -1,5 +1,5 @@
 import { activePreset, inPresetStyle } from './presets.mjs';
-import { PAGE_FORMATS, PANEL_COUNTS } from './comic.mjs';
+import { PAGE_FORMATS, PANEL_COUNTS, CUT_COUNTS, CUT_LAYOUTS } from './comic.mjs';
 import { MODELS, SAMPLERS, usableReferences } from '../plugin/core.mjs';
 import { CLIENT_VERSION, serverAtLeast } from './server-health.mjs';
 import { showGuide } from './guide.mjs';
@@ -160,19 +160,37 @@ function imagePage(page,{api,open}){
     const matchSize=()=>preset.set(SIZES.find(([,,w,h])=>w===fields.width.read()&&h===fields.height.read())?.[0]??'custom');
     dimensions.addEventListener('input',matchSize);matchSize();
     addField(sizeBox,fields,'autoSize','장면에 맞춰 세로·가로 바꾸기',c.autoSize,{type:'checkbox',help:'누운 장면은 가로, 서 있는 장면은 세로처럼 AI가 장면마다 화면 비율을 고릅니다. 픽셀 수는 위 크기와 비슷하게 유지합니다.'});
-    // A page of several panels instead of one picture. Chosen here; V5 only.
+    // One picture, several cuts, or a page of panels. Pages need V5; cuts work on any model.
     const pageBox=section(page,'그림 형식'),pageHelp=el('p','ap2-muted');
-    let format=c.pageFormat??'single',panels=c.panelCount??0;
+    let format=c.pageFormat??'single',panels=c.panelCount??0,countKind='';
     const formatChoice=segmented('그림 형식',PAGE_FORMATS.map(([id,label])=>[id,label]),format,value=>{format=value;syncPage();page.dispatchEvent(new Event('input'));});
-    const countChoice=segmented('컷 수',PANEL_COUNTS.map(([n,label])=>[String(n),label]),String(panels),value=>{panels=Number(value);page.dispatchEvent(new Event('input'));});
-    const countRow=el('div','ap2-quick-shape');countRow.append(el('span','','컷 수'),countChoice.wrap);
-    pageBox.append(formatChoice.wrap,pageHelp,countRow);
+    formatChoice.wrap.classList.add('ap2-format-choice');
+    const countRow=el('div','ap2-quick-shape'),countLabel=el('span','','컷 수');countRow.append(countLabel);
+    let cutLayout=c.cutLayout??'story';
+    const layoutChoice=segmented('컷 놓는 자리',CUT_LAYOUTS,cutLayout,value=>{cutLayout=value;page.dispatchEvent(new Event('input'));}),layoutRow=el('div','ap2-quick-shape');
+    layoutRow.append(el('span','','컷 놓는 자리'),layoutChoice.wrap);layoutRow.title='문단마다: 컷마다 그 장면을 그린 문단 바로 뒤에 놓아 글과 그림이 번갈아 나옵니다. 답변 아래 이어서: 모든 컷을 답변 끝에 한 줄로 이어 붙입니다.';
+    pageBox.append(formatChoice.wrap,pageHelp,countRow,layoutRow);
+    fields.cutLayout={read:()=>cutLayout};
     const bubbles=addField(pageBox,fields,'speechBubbles','말풍선에 대사 넣기',c.speechBubbles,{type:'checkbox',help:'칸마다 대사 한 줄을 말풍선에 넣습니다. NovelAI는 한글 글자를 잘 그리지 못해 뭉개질 수 있습니다.'});
     fields.pageFormat={read:()=>format};fields.panelCount={read:()=>panels};
+    // Cuts count pictures (up to 6); pages count panels (up to 4).
+    function countChoices(kind){
+        if(countKind===kind)return;countKind=kind;
+        const list=kind==='cuts'?CUT_COUNTS:PANEL_COUNTS;if(!list.some(([n])=>n===panels))panels=kind==='cuts'?4:0;
+        const choice=segmented(kind==='cuts'?'최대 컷':'컷 수',list.map(([n,label])=>[String(n),label]),String(panels),value=>{panels=Number(value);page.dispatchEvent(new Event('input'));});
+        countLabel.textContent=kind==='cuts'?'최대 컷':'컷 수';countRow.title=kind==='cuts'?'AI가 그릴 만한 장면만 골라 이 수 안에서 그립니다. 조용하거나 짧은 답변은 한 장만 그릴 수 있습니다.':'';
+        countRow.replaceChildren(countLabel,choice.wrap);
+    }
     function syncPage(){
-        const v5=String(fields.model?.input.value??c.model).startsWith('nai-diffusion-5-'),single=format==='single';
-        formatChoice.disable(!v5);countRow.hidden=bubbles.closest('.ap2-field').hidden=single||!v5;
-        pageHelp.textContent=!v5?'만화 페이지는 V5 모델에서만 그립니다. 지금 모델에서는 한 장면씩 그립니다.':PAGE_FORMATS.find(([id])=>id===format)?.[2]??'';
+        const v5=String(fields.model?.input.value??c.model).startsWith('nai-diffusion-5-');
+        // Without V5 only one picture or several cuts can be drawn.
+        if(!v5&&!['single','cuts'].includes(format)){format='single';formatChoice.set('single');}
+        for(const option of formatChoice.wrap.children)option.disabled=!v5&&!['single','cuts'].includes(option.dataset.value);
+        const cuts=format==='cuts',pageMode=!['single','cuts'].includes(format);
+        if(cuts||pageMode)countChoices(cuts?'cuts':'page');
+        countRow.hidden=!(cuts||pageMode);layoutRow.hidden=!cuts;bubbles.closest('.ap2-field').hidden=!pageMode;
+        const about=PAGE_FORMATS.find(([id])=>id===format)?.[2]??'';
+        pageHelp.textContent=cuts?`${about} AI가 그릴 만한 장면만 골라 최대 컷 안에서 장 수를 정합니다.`:!v5?`${about} 만화 페이지(흑백 · 컬러 · 세로 웹툰)는 V5 모델에서만 그립니다.`:about;
     }
     const sampling=section(page,'품질','기본값 그대로 써도 됩니다.'),grid=el('div','ap2-grid');sampling.append(grid);
     addField(grid,fields,'steps','Steps',c.steps,{type:'number',min:1,max:50,step:1});
@@ -287,7 +305,7 @@ export function studio(api,{page:first='home',host=null}={}){
     const display=id=>{const page=cached.get(id);for(const node of pages.children){const on=node===(page??loading);if(node.hidden===on)node.hidden=!on;}};
     // What a page was built from. A page is rebuilt only when this no longer matches.
     const DEPENDS={prompt:['look','style','negative','quality','leanPrompt','analysisPrompt','injectionPrompt','model'],
-        image:['model','width','height','autoSize','steps','scale','budgetGuard','sampler','scheduler','seed','cfgRescale','useCoords','useOrder','transparent','profileId','analysisMode','contextMessages','analysisLength','pageFormat','panelCount','speechBubbles','style','negative','look','quality','references'],
+        image:['model','width','height','autoSize','steps','scale','budgetGuard','sampler','scheduler','seed','cfgRescale','useCoords','useOrder','transparent','profileId','analysisMode','contextMessages','analysisLength','pageFormat','panelCount','cutLayout','speechBubbles','style','negative','look','quality','references'],
         display:['placement','displayWidth','compact','imageTools','frame','frameWide','frameInk'],references:['model','references']};
     const signature=id=>{
         if(DEPENDS[id]){const s=api.settings();return JSON.stringify([DEPENDS[id].map(key=>s[key]),id==='image'?(s.presets??[]).map(p=>p.name):id==='display'?(s.customFrames??[]).map(f=>f.id):0]);}
