@@ -2,9 +2,6 @@ import { MODELS, safeImagePath } from '../plugin/core.mjs';
 import { HELP } from './guide.mjs';
 import { notice,placeNotices } from './notifications.mjs';
 import { sceneLabel } from './scene-label.mjs';
-import { enableSequence } from './addon/viewer-swipe.mjs'; // [add]
-import { enableZoom } from './addon/zoom.mjs'; // [add]
-import { styleName } from './addon/style-presets.mjs'; // [add] 제목에 그림체 프리셋
 export { notice } from './notifications.mjs';
 export { composer } from './editor.mjs';
 
@@ -27,19 +24,28 @@ export function button(label, action, primary = false, icon = '') {
         try { const result=action();if(result?.then){b.disabled=true;try{await result;}finally{b.disabled=false;}} } catch (e) { notice(e.message, true); }
     }); return b;
 }
+// A thin line chevron, drawn rather than taken from the icon font so it stays light at small sizes.
+export function chevron(side='right'){
+    const ns='http://www.w3.org/2000/svg',svg=document.createElementNS(ns,'svg'),path=document.createElementNS(ns,'path');
+    svg.setAttribute('viewBox','0 0 16 16');svg.setAttribute('class','ap2-chevron');svg.setAttribute('aria-hidden','true');
+    path.setAttribute('d',side==='left'?'M10 3.5 5.5 8l4.5 4.5':'M6 3.5 10.5 8 6 12.5');svg.append(path);return svg;
+}
 export function iconButton(label, icon, action) {
     const b=button('',action,false,icon);b.classList.add('ap2-icon-button');
     b.title=label;b.setAttribute('aria-label',label);return b;
 }
 // Native popovers stay above the scrolling dialog and dismiss on outside click.
-export function actionMenu(actions,label='더 보기') {
+// A menu of further actions. Its button looks like the buttons beside it: icon and
+// label, or the icon alone in a row of icon buttons (`compact`).
+export function actionMenu(actions,label='더 보기',{compact=false}={}) {
     const wrap=el('div','ap2-action-menu'),panel=el('div','ap2-action-panel');panel.setAttribute('popover','auto');panel.setAttribute('role','group');panel.setAttribute('aria-label',label);
-    const trigger=iconButton(label,'fa-ellipsis',()=>{
+    const toggle=()=>{
         if(panel.matches(':popover-open')){panel.hidePopover();return;}
         panel.showPopover();const r=trigger.getBoundingClientRect(),p=panel.getBoundingClientRect();
         panel.style.left=`${Math.max(8,Math.min(r.right-p.width,innerWidth-p.width-8))}px`;
         panel.style.top=`${Math.max(8,r.top>p.height+8?r.top-p.height-6:Math.min(r.bottom+6,innerHeight-p.height-8))}px`;
-    });
+    };
+    const trigger=compact?iconButton(label,'fa-ellipsis',toggle):button(label,toggle,false,'fa-ellipsis');trigger.classList.add('ap2-menu-trigger');
     panel.id=`ap2-menu-${crypto.randomUUID()}`;trigger.setAttribute('aria-controls',panel.id);trigger.setAttribute('aria-expanded','false');
     let events;
     panel.addEventListener('toggle',()=>{
@@ -72,8 +78,9 @@ export function modal(title, subtitle = '') {
     const close=iconButton('닫기','fa-xmark',()=>dialog.close());close.classList.add('ap2-close');header.append(titleBox, close);
     const body = el('div', 'ap2-body'); dialog.append(header, body); document.body.append(dialog);
     dialog.addEventListener('close', () => { placeNotices(); dialog.remove(); previous?.focus(); });
-    // [add] touchstart: 휴대폰에서 창을 누를 때 실리가 뒤의 확장 칸을 닫지 않게 합니다.
-    for(const event of ['mousedown','pointerdown','click','touchstart'])dialog.addEventListener(event,e=>e.stopPropagation(),{passive:true});
+    // SillyTavern closes its open drawers on any touch or press outside them and swipes
+    // the last reply on arrow keys. Nothing done inside a dialog reaches the page behind it.
+    for(const event of ['mousedown','pointerdown','click','touchstart','touchend','keydown','keyup'])dialog.addEventListener(event,e=>e.stopPropagation());
     dialog.addEventListener('click', e => { if (e.target === dialog) { const r = dialog.getBoundingClientRect(); if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) dialog.close(); } });
     dialog.showModal();placeNotices(); return { dialog, body };
 }
@@ -204,37 +211,6 @@ export function downloadJson(value, name) {
 export function inspect(job) {
     const {body}=modal('생성 기록',`Seed ${job.seed} · ${MODELS[job.config?.model]?.label??job.config?.model??''}`);
     const pre=el('pre','ap2-code',JSON.stringify({scene:job.scene,config:job.config,seed:job.seed,review:job.review},null,2));body.append(pre,button('다운로드',()=>downloadJson(job,'scenebook-image-record.json')));
-}
-export function viewer(job,{actions=[],more=[],sequence=null}={}) {
-    if(!safeImagePath(job.url))throw new Error('이미지 경로를 확인할 수 없습니다.');
-    // [add] sequence가 있으면 "n / 전체"를 함께 보여 주고 좌우로 넘길 수 있습니다.
-    const info=(target,index=-1)=>[MODELS[target.config?.model]?.label,target.config?.width&&`${target.config.width} × ${target.config.height}`,target.seed!==undefined&&`Seed ${target.seed}`,sequence&&index>=0&&`${index+1} / ${sequence.jobs.length}`].filter(Boolean).join(' · ');
-    const start=sequence?Math.max(0,sequence.jobs.findIndex(x=>x.id===job.id)):-1;
-    // [add] 제목: 삽화 · 그림체 프리셋 이름
-    const heading=target=>[sceneLabel(target.scene)||'삽화',styleName(target.config)].filter(Boolean).join(' · ');
-    const label=sceneLabel(job.scene)||'삽화',{dialog,body}=modal(heading(job),info(job,start));dialog.classList.add('ap2-viewer');
-    const img=el('img','ap2-full');img.src=job.url;img.alt=label;body.append(img);
-    const zoom=enableZoom(body,img,iconButton); // [add] 확대
-    const footer=el('footer','ap2-footer ap2-viewer-footer');
-    const run=item=>{if(item.close)dialog.close();return item.run();};
-    const fill=(target,list,extra)=>{
-        footer.replaceChildren();
-        for(const item of list){const b=button(item.label,()=>run(item),false,item.icon??'');if(item.danger)b.classList.add('ap2-danger');footer.append(b);}
-        const download=el('a','ap2-button');download.href=target.url;download.download=`${target.id}.png`;download.title='원본 PNG 저장';download.setAttribute('aria-label','원본 PNG 저장');
-        const glyph=el('i','fa-solid fa-download');glyph.setAttribute('aria-hidden','true');download.append(glyph,el('span','','저장'));footer.append(download);
-        if(extra.length)footer.append(actionMenu(extra.map(item=>({...item,run:()=>run(item)}))));
-    };
-    fill(job,actions,more);dialog.append(footer);
-    if(sequence)enableSequence(dialog,{job,sequence,usable:safeImagePath,canSwipe:()=>!zoom.isZoomed(),show:(target,index,step)=>{
-        zoom.reset();
-        const title=sceneLabel(target.scene)||'삽화';
-        dialog.querySelector('.ap2-header-title h2').textContent=heading(target);
-        const sub=dialog.querySelector('.ap2-header-title p');if(sub)sub.textContent=info(target,index);
-        img.src=target.url;img.alt=title;
-        img.animate?.([{opacity:0,transform:`translateX(${step*48}px)`},{opacity:1,transform:'none'}],{duration:220,easing:'ease-out'});
-        const view=sequence.build(target);fill(target,view.actions??[],view.more??[]);
-    }});
-    return dialog;
 }
 export function compareVersions(versions,currentIndex){
     const {body}=modal('결과 비교');

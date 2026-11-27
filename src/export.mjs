@@ -6,7 +6,7 @@ const escape=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&
 export function exportMessages(chat,placement='end'){
     return chat.filter(m=>!m.is_system).map(m=>{
         const state=m.extra?.autopic2?.views?.[sourceKey(m.mes,m.swipe_id??0)];
-        const images=state?.source===m.mes?(state.slots??[]).filter(s=>!s.hidden&&!s.deleted).map(s=>({job:s.versions?.[s.selected],anchor:placement==='inline'?s.anchor:null})).filter(s=>safeImagePath(s.job?.url)):[];
+        const images=state?.source===m.mes?(state.slots??[]).filter(s=>!s.hidden&&!s.deleted).map(s=>({job:s.versions?.[s.selected],anchor:placement==='inline'||placement==='auto'?s.anchor:null})).filter(s=>safeImagePath(s.job?.url)):[];
         return{name:m.name??(m.is_user?'사용자':'캐릭터'),source:String(m.mes??''),images};
     });
 }

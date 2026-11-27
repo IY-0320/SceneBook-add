@@ -1,15 +1,17 @@
 import { MODELS, buildPayload, normalizeScene, usableReferences } from '../plugin/core.mjs';
+import { activePreset } from './presets.mjs';
+import { PAGE_FORMATS, PAGE_GRIDS, STRIP_HEIGHTS, gridFor, compilePage } from './comic.mjs';
+import { compileScene } from './prompt-order.mjs';
 import { positionEditor } from './position.mjs';
 import { sceneBundle, readSceneBundle } from './editor-data.mjs';
 import { showGuide } from './guide.mjs';
 import { generationEditor } from './generation-ui.mjs';
 import { paragraphPosition } from './paragraph-ui.mjs';
 import { ORIENTATIONS, LOOKS, withLook } from './framing.mjs';
-import { cameraChips } from './quick-edit.mjs';
+import { cameraChips, viewWarning } from './quick-edit.mjs';
 import { el, button, field, addField, readFields, modal, notice, confirmAction, downloadJson, actionMenu, segmented } from './ui.mjs';
-import { presetInfo } from './addon/style-presets.mjs'; // [add]
 
-export function composer({context,scenes,config,onAnalyze,onGenerate,onDraft,previewUrl,presets=[]}){
+export function composer({context,scenes,config,onAnalyze,onGenerate,onDraft,previewUrl}){
     const {dialog,body}=modal('장면 편집');dialog.classList.add('ap2-editor');
     let drafts=structuredClone(scenes),selected=0,person=0,tab='scene',dirty=false,editing=false;
     const undo=[];const snapshot=()=>{undo.push({drafts:structuredClone(drafts),config:structuredClone(config),selected,person});if(undo.length>20)undo.shift();dirty=true;};
@@ -33,7 +35,7 @@ export function composer({context,scenes,config,onAnalyze,onGenerate,onDraft,pre
         {label:'내보내기',icon:'fa-file-export',run:()=>downloadJson(sceneBundle(drafts,config),'scenebook-scenes.json')},
         {label:'가져오기',icon:'fa-file-import',run:()=>input.click()},
         {label:'사용법',icon:'fa-circle-question',run:showGuide},
-    ]),input);
+    ],'더 보기',{compact:true}),input);
     input.addEventListener('change',async()=>{try{const file=input.files?.[0];if(!file)return;if(file.size>300000)throw new Error('300KB 이하 장면 파일을 선택하세요.');const value=readSceneBundle(JSON.parse(await file.text()),config,context.blocks.at(-1).index);snapshot();drafts=value.scenes;Object.assign(config,value.config);selected=person=0;render();notice('장면을 불러왔습니다.');}catch(e){notice(e.message,true);}finally{input.value='';}});
     const save=button('초안 저장',async()=>{await onDraft(drafts);dirty=false;status.textContent='초안 저장됨';},false,'fa-floppy-disk');
     const generate=button('생성',async()=>{await onGenerate(drafts);dirty=false;dialog.close();},true,'fa-wand-magic-sparkles');primary.append(save,generate);
@@ -55,8 +57,7 @@ export function composer({context,scenes,config,onAnalyze,onGenerate,onDraft,pre
     }
     function bind(parent,key,label,options={}){const f=field(label,scene()[key],options);parent.append(f.wrap);f.input.addEventListener('input',()=>{scene()[key]=f.read();});return f;}
     function renderScene(){
-        // [add] 문단 뒤(자동)일 때도 문단을 직접 고를 수 있습니다.
-        if(config.placement!=='end')content.append(paragraphPosition(context.blocks,Number(scene().after),index=>{snapshot();scene().after=index;scene().evidence=context.blocks.find(block=>block.index===index)?.content.slice(0,2000)??'';undoButton.disabled=false;}));
+        if(config.placement==='inline'||config.placement==='auto')content.append(paragraphPosition(context.blocks,Number(scene().after),index=>{snapshot();scene().after=index;scene().evidence=context.blocks.find(block=>block.index===index)?.content.slice(0,2000)??'';undoButton.disabled=false;}));
         // Scene on one side, the job's shared prompts on the other; stacked on a narrow screen.
         const columns=el('div','ap2-edit-columns'),sceneSide=el('div',''),commonSide=el('div','');columns.append(sceneSide,commonSide);content.append(columns);
         const part=(side,title,help='')=>{const box=el('section','ap2-edit-block'),head=el('header','');head.append(el('h3','',title));if(help)head.append(el('p','ap2-muted',help));box.append(head);side.append(box);return box;};
@@ -65,8 +66,33 @@ export function composer({context,scenes,config,onAnalyze,onGenerate,onDraft,pre
         bare(bind(sceneBox,'prompt','장면 프롬프트',{multiline:true,rows:4,placeholder:'배경, 조명, 장면의 시각적 상황을 입력하세요.'}));
         bind(sceneBox,'negative',exact?'최종 제외 요소 (UC)':'이 장면에서만 제외',{multiline:true,rows:2});
         if(exact){const direct=field('최종 프롬프트 직접 사용',true,{type:'checkbox',help:'끄면 이 내용을 장면으로 쓰고 메인 프롬프트·그림체·구도·품질 태그를 다시 붙입니다. 겹치는 태그는 직접 지워 주세요.'});direct.input.addEventListener('input',()=>{scene().finalPrompt=direct.read();renderContent();});sceneBox.append(direct.wrap);}
-        const cameraBox=part(sceneSide,'구도 · 화면 비율');
-        if(!exact){const camera=bare(bind(cameraBox,'camera','구도',{placeholder:'예: from side, upper body'}));cameraBox.insertBefore(cameraChips(camera).wrap,camera.wrap);}
+        // A page of panels: what all panels share is the scene prompt above; each panel is edited here.
+        const page=!exact&&scene().page;
+        if(page){
+            sceneBox.querySelector('h3').textContent='모든 칸에 공통';sceneBox.querySelector('header p').textContent='장소 · 시간 · 빛처럼 모든 칸에 같은 것입니다.';
+            const pageBox=part(sceneSide,'만화 페이지',`${page.panels.length}칸 · V5에서만 그립니다.`);
+            const kind=field('형식',scene().pageFormat??'manga',{choices:[...PAGE_FORMATS.filter(([id])=>!['single','cuts'].includes(id)).map(([id,label])=>[id,label]),['single','한 장면으로 바꾸기']]});
+            kind.input.addEventListener('change',()=>{snapshot();if(kind.read()==='single'){delete scene().page;delete scene().pageFormat;}else scene().pageFormat=kind.read();renderContent();});
+            const webtoon=(scene().pageFormat??'manga')==='webtoon',grids=page.local&&!webtoon?PAGE_GRIDS[page.panels.length]:null;
+            pageBox.append(kind.wrap);
+            // A planned page sits on a grid; a page from before grids has only its layout sentence.
+            if(grids){const grid=field('칸 나눔',gridFor(page)[0],{choices:grids.map(([id,label])=>[id,label])});grid.input.addEventListener('change',()=>{page.grid=grid.read();});pageBox.append(grid.wrap);}
+            const layout=field(page.local?'칸 배치 직접 쓰기':'칸 배치',page.layout,{multiline:true,rows:2,placeholder:page.local?(webtoon?'비워 두면 칸 높이대로 그립니다':'비워 두면 칸 나눔대로 그립니다'):'예: top panel largest spanning the full width, two equal panels below'});layout.input.addEventListener('input',()=>{page.layout=layout.read();});
+            pageBox.append(layout.wrap);
+            // Each panel, then the people in it: the same person is written again for every panel.
+            page.panels.forEach((panel,i)=>{
+                const group=el('section','ap2-quick-panel'),f=bare(field(`${i+1}번째 칸`,panel.text,{multiline:true,rows:3}));f.input.addEventListener('input',()=>{panel.text=f.read();});
+                group.append(el('h4','',`${i+1}번째 칸`),f.wrap);
+                if(webtoon&&page.local){const h=field('칸 높이',panel.height??'medium',{choices:STRIP_HEIGHTS});h.input.addEventListener('change',()=>{panel.height=h.read();});group.append(h.wrap);}
+                for(const c of panel.characters??[]){const g=field(c.name||'인물',c.prompt??'',{multiline:true,rows:2});g.input.addEventListener('input',()=>{c.prompt=g.read();});group.append(g.wrap);}
+                pageBox.append(group);
+            });
+        }
+        const cameraBox=part(sceneSide,page?'화면 비율':'구도 · 화면 비율');
+        if(!exact&&!page){
+            const camera=bare(bind(cameraBox,'camera','구도',{placeholder:'예: from side, upper body'}));cameraBox.insertBefore(cameraChips(camera).wrap,camera.wrap);
+            const warning=viewWarning(camera,()=>scene());camera.wrap.after(warning.wrap);warning.update();
+        }
         const shape=segmented('화면 비율',ORIENTATIONS,scene().size??'',value=>{snapshot();if(value)scene().size=value;else delete scene().size;undoButton.disabled=false;}),shapeRow=el('div','ap2-quick-shape');shapeRow.append(el('span','','화면 비율'),shape.wrap);cameraBox.append(shapeRow);
         if(!exact){
             // The shared prompts of this job. They start from the saved defaults or from the picture being edited.
@@ -79,6 +105,7 @@ export function composer({context,scenes,config,onAnalyze,onGenerate,onDraft,pre
         instructions.append(button('재분석',async()=>{const before=JSON.stringify(drafts);status.textContent='장면 분석 중…';try{const result=await onAnalyze(structuredClone(drafts),direction.read(),scope.read());if(JSON.stringify(drafts)!==before)throw new Error('분석 중 편집한 내용이 있어 결과로 덮어쓰지 않았습니다.');snapshot();drafts=result;render();status.textContent='분석 완료 · 변경 내용을 확인하세요.';}catch(e){status.textContent='분석 실패 · 기존 편집 내용을 유지했습니다.';throw e;}}));(exact?sceneSide:commonSide).append(instructions);
     }
     function renderCast(){
+        if(scene().page){content.append(el('p','ap2-empty','만화 페이지는 칸마다 인물과 위치가 따로 있습니다. 칸 내용과 칸마다의 인물은 장면 · 프롬프트 탭의 만화 페이지에서 고칩니다.'));return;}
         const cast=scene().characters??=[];person=Math.max(0,Math.min(person,cast.length-1));
         const layout=el('div','ap2-cast-layout'),visual=el('div','ap2-cast-visual'),editor=el('div','ap2-cast-editor'),list=el('div','ap2-cast-list'),fieldsArea=el('div','ap2-cast-fields');layout.append(visual,editor);editor.append(list,fieldsArea);content.append(layout);
         const coords=field('좌표 적용',config.useCoords,{type:'checkbox'}),order=field('인물 순서 적용',config.useOrder,{type:'checkbox'});let currentFields={};
@@ -101,12 +128,16 @@ export function composer({context,scenes,config,onAnalyze,onGenerate,onDraft,pre
         showPerson();placement.select(person);
     }
     function renderFinal(){
-        // [add] 이 작업에 쓰인 그림체 프리셋 (확인용, 바꾸는 곳은 그림 고치기 창)
-        content.append(presetInfo({presets,config}));
         content.append(el('p','ap2-note','그림체·메인 프롬프트·구도·장면·품질 태그를 합친, 실제로 보낼 프롬프트입니다. 확인만 해도 됩니다. 여기서 직접 고치면 이 장면은 입력한 내용만 그대로 전송합니다.'));
-        let payload;try{payload=buildPayload(scene(),{...withLook(config,config.look??''),references:usableReferences(config.model,config.references??[])},config.seed===-1?0:config.seed);}catch(e){content.append(el('p','ap2-muted',e.message));return;}
+        const preset=activePreset(config);if(preset)content.append(el('p','ap2-muted',`그림체 프리셋 · ${preset.name}`));
+        let payload,pageCharacters=null;try{
+            let sent=scene(),settings={...withLook(config,config.look??''),references:usableReferences(config.model,config.references??[])};
+            if(sent.page?.panels?.length){({scene:sent,config:settings}=compilePage(sent,{...settings,speechBubbles:!!sent.bubbles}));pageCharacters=sent.characters;}
+            else sent=compileScene(sent,settings);
+            payload=buildPayload(sent,settings,config.seed===-1?0:config.seed);
+        }catch(e){content.append(el('p','ap2-muted',e.message));return;}
         const prompt=field('최종 장면 프롬프트',payload.input,{multiline:true,rows:7}),negative=field('최종 제외 요소',payload.parameters.negative_prompt,{multiline:true,rows:4});content.append(prompt.wrap,negative.wrap);
-        for(const f of [prompt,negative])f.input.addEventListener('input',()=>{Object.assign(scene(),{prompt:prompt.read(),negative:negative.read(),camera:'',finalPrompt:true});dirty=true;});
+        for(const f of [prompt,negative])f.input.addEventListener('input',()=>{Object.assign(scene(),{prompt:prompt.read(),negative:negative.read(),camera:'',finalPrompt:true});if(pageCharacters){scene().characters=pageCharacters;delete scene().page;}dirty=true;});
         if(scene().characters.length)content.append(el('p','ap2-muted',`인물 ${scene().characters.length}명의 프롬프트는 인물 · 배치에서 따로 전송됩니다.`));
     }
     render();return dialog;
