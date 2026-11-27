@@ -26,9 +26,19 @@ import { bucketFromPadded } from './src/images.mjs';
 import { studio, mountSettings } from './src/studio.mjs';
 import { timelineInstruction,validateTimeline,resolveAt } from './src/timeline.mjs';
 import { el, button, chevron, notice, composer, inspect, modal, compareVersions, confirmAction, syncTone } from './src/ui.mjs';
-import { openViewer } from './src/viewer.mjs';
+import { openViewer } from './src/addon/viewer.mjs'; // [add] 씬북+ 큰 그림 보기
 import { activePreset, inPresetStyle } from './src/presets.mjs';
-import { migrateAddonSettings } from './src/addon/migrate.mjs'; // [add] 예전 씬북+ 설정 옮기기
+// [add] 씬북+ 추가 기능 (src/addon/)
+import { migrateAddonSettings } from './src/addon/migrate.mjs';
+import { connect as connectAddon } from './src/addon/host.mjs';
+import { revealTools as plusRevealTools, initChatHelpers, showVersionNow } from './src/addon/chat-helpers.mjs';
+import { plusDisplayParagraph } from './src/addon/auto-placement.mjs';
+import { activeStyleIndex, restyle, applyStylePreset, writeActiveStyle, STYLE_NONE, styleName } from './src/addon/style-presets.mjs';
+import { deleteIllustrationImages, deletedJobIds } from './src/addon/gallery-delete.mjs';
+import { parseAnalysisResponse, analysisLength as plusAnalysisLength } from './src/addon/analysis-response.mjs';
+export { reloadAfterUpdate as onSceneBookUpdate } from './src/addon/update-reload.mjs';
+// 씬북+ 분석 답 길이: 보조 모델로 장면 쓰기(원본 새 기능)는 그 칸의 길이를, 그 밖에는 씬북+ 설정(자동/직접 입력)을 씁니다.
+const plusLength=config=>Number(config.analysisLength)>=1000?Math.min(128000,Math.round(Number(config.analysisLength))):plusAnalysisLength(Math.min(6000,1800*config.maxScenes));
 import { readAnalysisReply, analysisLength } from './src/analysis-reply.mjs';
 import { compileScene } from './src/prompt-order.mjs';
 import { fixViewpoint } from './src/viewpoint.mjs';
@@ -194,12 +204,12 @@ async function analyze(target,existing=[],direction='',revisionScope='all',persi
     try{
         let timeline=null;
         if(target.config.analysisMode==='precise'&&target.snapshot.library.length&&(!existing.length||revisionScope==='all'||revisionScope==='characters')){
-            const extracted=await analysisRequest(target.config,timelineInstruction(target.snapshot),Math.max(4000,analysisLength(target.config)));
+            const extracted=await analysisRequest(target.config,timelineInstruction(target.snapshot),Math.max(4000,plusLength(target.config)));/* [add] */
             let parsed;try{parsed=JSON.parse(String(extracted?.content??'').trim().replace(/^```(?:json)?\s*/i,'').replace(/\s*```$/,''));}catch{throw new Error('상태 추적 JSON을 해석할 수 없습니다. 빠른 모드로 조용히 바꾸지 않았습니다.');}
             timeline=validateTimeline(parsed,target.snapshot);
         }
-        const response=await analysisRequest(target.config,planInstruction(target.snapshot,target.config,existing.length?existing:null,direction),analysisLength(target.config));
-        const value=readAnalysisReply(response?.content);
+        const response=await analysisRequest(target.config,planInstruction(target.snapshot,target.config,existing.length?existing:null,direction),plusLength(target.config)); /* [add] 씬북+ 분석 답 길이 */
+        let value;try{value=parseAnalysisResponse(response?.content,parsePlanJson).value;}catch(e){throw new Error(`분석 응답을 형식 복구 후에도 읽지 못했습니다. 기존 초안은 유지됩니다. · ${e.message}`);} /* [add] 씬북+ 응답 읽기 */
         if(!Array.isArray(value.scenes)||value.scenes.length>target.config.maxScenes)throw new Error('분석 결과의 장면 수가 설정과 맞지 않습니다.');
         if(existing.length&&value.scenes.length!==existing.length)throw new Error('수정 중 장면 수가 바뀌었습니다. 기존 초안을 유지합니다.');
         const errors=[],accepted=[];
@@ -425,6 +435,7 @@ function chooseVersion(index,slot,selected){
 // panels, or the scene as written before SceneBook put the prompt in order.
 function sourceScene(job){return job.pageScene??job.plainScene??job.scene;}
 function restyled(job,seed=-1){
+    /* [add] 씬북+: 직접 고른 프리셋이 있을 때만 그 그림체로 다시 그립니다. */{const styled=restyle(job.config);return{...styled,presetName:styled===job.config?(job.preset??''):styleName(styled),seed};}
     const preset=activePreset(settings());
     return{...(preset?inPresetStyle(job.config,preset):{...job.config,presetName:job.preset??''}),seed};
 }
@@ -469,26 +480,27 @@ function openIllustration(index,slot) {
             {label:'AI 검수',icon:'fa-magnifying-glass',run:()=>reviewImage(job)},
             {label:'생성 기록',icon:'fa-file-lines',run:()=>inspect(job)},
             ...(slot.versions.length>1?[{label:'버전 비교',icon:'fa-columns',run:()=>compareVersions(slot.versions,slot.selected)}]:[]),
-            {label:'같은 시드로 생성',icon:'fa-rotate-right',run:()=>{ensureCurrent();return enqueue(target,[sourceScene(job)],slot.id,{...job.config,seed:job.seed});}},
+            {label:'같은 시드로 생성',icon:'fa-rotate-right',run:()=>{ensureCurrent();return enqueue(target,[sourceScene(job)],slot.id,restyled(job,job.seed));}}, /* [add] 씬북+ 적용 중 그림체 */
             {label:'기본 시드로 저장',icon:'fa-thumbtack',run:()=>{saveSettings({...settings(),seed:job.seed});notice(`Seed ${job.seed} 저장됨`);}},
             {label:'삭제',icon:'fa-trash-can',danger:true,run:async()=>{if(await deleteIllustration(target,slot))view.dialog.close();}},
         ],
     });
-    const view=openViewer({items:slot.versions,index:slot.selected,describe,onShow:job=>{const i=slot.versions.indexOf(job);if(i>=0&&i!==slot.selected&&!slot.deleted)chooseVersion(index,slot,i);}});
+    const view=openViewer({items:slot.versions,index:slot.selected,describe,onShow:job=>{const i=slot.versions.indexOf(job);if(i>=0&&i!==slot.selected&&!slot.deleted&&current(target)){slot.selected=i;showVersionNow(target.message);}}}); /* [add] 씬북+ 버전 넘기기 */
 }
 function openQuickEdit(index,slot) {
     const target=capture(index),job=slot.versions[slot.selected];
     if(!viewState(target,false)?.slots.includes(slot)||slot.deleted)throw new Error('대상 답변이 바뀌었습니다. 이미지를 다시 열어 주세요.');
     const check=()=>{if(!current(target)||slot.deleted)throw new Error('대상 답변이 바뀌었습니다. 이미지를 다시 열어 주세요.');};
     // The picture's own prompts, with its look taken back out so it is shown and applied once.
-    quickEdit({scene:job.plainScene??job.scene,page:job.pageScene,config:{...editableConfig(job.config),presets:settings().presets??[],presetName:job.preset??''},seed:job.seed,imageUrl:job.url,
+    const styled=restyle(job.config); /* [add] 씬북+: 적용 중인(직접 고른) 프리셋 그림체로 고칩니다 */
+    quickEdit({scene:job.plainScene??job.scene,page:job.pageScene,config:editableConfig(styled),plusPresets:settings().presets??[],seed:job.seed,imageUrl:job.url, /* [add] */
         onRewrite:async(scene,request)=>{check();return(await analyze(target,[{...scene,after:Math.min(scene.after,target.snapshot.blocks.length)}],request,'all',false))[0];},
         onGenerate:(scene,{size,keepSeed,saveDefault,...edits})=>{
             check();
-            if(saveDefault)saveSettings({...settings(),...edits});
-            return enqueue(target,[scene],slot.id,{...job.config,presetName:job.preset??'',...edits,seed:keepSeed?job.seed:-1,...(size?sizeFor(job.config,size):{})});
+            if(saveDefault)saveSettings({...settings(),style:edits.style,negative:edits.negative,look:edits.look});/* [add] 도움말대로 메인 프롬프트·제외 요소·그림체만 기본값에 저장 */
+            return enqueue(target,[scene],slot.id,{...styled,...edits,seed:keepSeed?job.seed:-1,...(size?sizeFor(job.config,size):{})}); /* [add] styled */
         },
-        onDetail:(scene,edits)=>{check();return compose(index,true,[scene],slot.id,{...job.config,...edits,seed:job.seed});},
+        onDetail:(scene,edits)=>{check();return compose(index,true,[scene],slot.id,{...styled,...edits,seed:job.seed});}, /* [add] styled */
     });
 }
 function renderMessage(index) {
@@ -524,12 +536,7 @@ function renderMessage(index) {
         const imageWrap=el('div','ap2-image-wrap'),overlay=el('div','ap2-image-actions');
         overlay.setAttribute('aria-label','삽화 도구');
         // On touch screens the buttons wait for a first tap; a second tap opens the picture.
-        figure.dataset.touch=config.imageTools;let pointer='';
-        const open=button('',()=>{
-            const touch=pointer?pointer!=='mouse':matchMedia('(hover: none)').matches;pointer='';
-            if(config.imageTools==='tap'&&touch&&!figure.classList.contains('ap2-show-tools')){revealTools(figure);return;}
-            toolsShown.get(figure)?.();return openIllustration(index,slot);
-        });open.className='ap2-image-open';open.addEventListener('pointerdown',event=>{pointer=event.pointerType;});open.setAttribute('aria-label',`${sceneLabel(job.scene)||'삽화'} · 이미지 보기`);open.replaceChildren(image);
+        const open=button('',()=>plusRevealTools(figure)?undefined:openIllustration(index,slot));/* [add] 씬북+ 터치: 첫 누름은 도구 표시 */open.className='ap2-image-open';open.setAttribute('aria-label',`${sceneLabel(job.scene)||'삽화'} · 이미지 보기`);open.replaceChildren(image);
         const targetForImage=()=>{const target=capture(index);if(!viewState(target,false)?.slots.includes(slot)||slot.deleted)throw new Error('대상 답변이 바뀌었습니다.');return target;};
         for(const [label,icon,action]of [
             ['수정','fa-pen',()=>{targetForImage();return openQuickEdit(index,slot);}],
@@ -539,7 +546,7 @@ function renderMessage(index) {
         const cut=!!(slot.cut||job.cut);if(cut)figure.classList.add('ap2-cut');
         imageWrap.append(open,overlay);figure.append(imageWrap);applyFrame(figure,imageWrap,open,job.config.width,job.config.height,cut?{...config,frame:'none',frameWide:''}:config);
         if(slot.versions.length>1){
-            const change=delta=>{targetForImage();chooseVersion(index,slot,slot.selected+delta);};
+            const change=delta=>{const target=targetForImage();slot.selected=(slot.selected+delta+slot.versions.length)%slot.versions.length;showVersionNow(target.message);};/* [add] 씬북+ 버전 바로 넘기기 */
             const navigation=el('div','ap2-image-navigation');navigation.setAttribute('role','group');navigation.setAttribute('aria-label','삽화 버전 전환');
             const back=button('',()=>change(-1)),next=button('',()=>change(1));
             for(const [b,label,side]of [[back,'이전 그림','left'],[next,'다음 그림','right']]){b.prepend(chevron(side));b.setAttribute('aria-label',label);b.title=label;}
@@ -547,7 +554,7 @@ function renderMessage(index) {
             figure.append(navigation);
         }
         // Cuts stay where they were planned: after their paragraphs, or all below the reply.
-        const anchor=byParagraph(slot.cut&&slot.placement?slot.placement:config.placement)?displayParagraph(paragraphs(),slot.anchor,sourceParagraphs()):null;
+        const anchor=byParagraph(slot.cut&&slot.placement?slot.placement:config.placement)?plusDisplayParagraph(paragraphs(),slot.anchor,sourceParagraphs())/* [add] 씬북+ 문단 자리 찾기 */:null;
         if(anchor){(inlineTails.get(anchor)??anchor).after(figure);inlineTails.set(anchor,figure);}else content.append(figure);
         nodes.push(figure);
     }
@@ -725,6 +732,9 @@ const api={settings,saveSettings,visualSettings,hasVisualOverride:where=>hasVisu
     compose,manual:index=>openManual(index),analyze:()=>compose(lastIndex(),false),health:force=>checkHealth(force),account:()=>request('account'),jobs:async()=>(await request('jobs')).jobs,
     hideFromGallery:async(ids,value=true)=>{const latest=settings(),list=new Set(latest.galleryHidden??[]);for(const id of ids)value?list.add(id):list.delete(id);saveSettings({...latest,galleryHidden:[...list]});},
     deleteImages,
+    // [add] 씬북+ 갤러리 삭제 · 프리셋 빠른 선택 (원본 deleteImages 대신 씬북+ 방식)
+    deleteImages:(jobs,permanent)=>deleteIllustrationImages(jobs,permanent),deletedJobs:()=>deletedJobIds(),
+    activeStyle:()=>activeStyleIndex(),setActiveStyle:name=>writeActiveStyle(name),clearActiveStyle:()=>writeActiveStyle(STYLE_NONE),applyStyle:index=>applyStylePreset(index),
     showPlans,chatImages:()=>context().chat.flatMap(message=>Object.values(message.extra?.[KEY]?.views??{}).flatMap(view=>(view.slots??[]).flatMap(slot=>slot.versions??[]))),
     settingsHistory:()=>settingsHistory(context().extensionSettings),restoreSettings:value=>{const currentValue=settings();preserveSettings(context().extensionSettings,cleanSettings({...currentValue,...value}),{reason:'복구 전',force:true});context().saveSettingsDebounced();document.dispatchEvent(new Event('scenebook-settings-changed'));if(!workflowEnabled(settings())){clearInjection();automatic.stop();queue.cancelWaiting(item=>item.automatic);}},
     isImage:safeImagePath,review:reviewImage,queue:()=>queue.items,queuePaused:()=>queue.paused,usage:()=>sessionRequests,toggleQueue:()=>queue.toggle(),cancelQueue:()=>queue.cancelWaiting(),
@@ -745,6 +755,7 @@ const api={settings,saveSettings,visualSettings,hasVisualOverride:where=>hasVisu
     recover:async job=>{const target=capture();const copy=structuredClone(job);copy.scene.after=target.snapshot.blocks.at(-1).index;copy.scene.evidence='';await attach(target,copy);notice('마지막 답변 아래에 삽입했습니다.');},
 };
 function initialize() {
+    connectAddon({KEY,settings,saveSettings,scheduleRender,notice,safeImagePath});initChatHelpers(); // [add] 씬북+
     const c=context();const moved=migrateAddonSettings(c.extensionSettings); /* [add] */if(initializeSettings(c.extensionSettings)||moved)c.saveSettingsDebounced();
     const container=document.getElementById('extensions_settings2')??document.getElementById('extensions_settings');
     if(container&&!document.getElementById('ap2-settings'))mountSettings(api,container);
@@ -823,7 +834,6 @@ function initialize() {
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',initialize,{once:true});else initialize();
 // SillyTavern calls this after updating the extension's files. This page still runs
 // the old code, so it reloads, unless a picture is being made right now.
-export { reloadAfterSceneBookUpdate as onSceneBookUpdate }; // [add] 예전 씬북+ manifest의 업데이트 훅 이름
 export function reloadAfterSceneBookUpdate(){
     if(queue.running||analysisLocks.size){notice('씬북을 업데이트했습니다. 지금 작업이 끝난 뒤 페이지를 새로고침해 주세요.');return;}
     notice('씬북을 업데이트했습니다. 잠시 뒤 페이지를 새로 불러옵니다.');setTimeout(()=>location.reload(),1500);

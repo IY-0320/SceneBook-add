@@ -1,5 +1,6 @@
 import { MODELS, buildPayload, normalizeScene, usableReferences } from '../plugin/core.mjs';
 import { activePreset } from './presets.mjs';
+import { presetInfo } from './addon/style-presets.mjs'; // [add]
 import { PAGE_FORMATS, PAGE_GRIDS, STRIP_HEIGHTS, gridFor, compilePage } from './comic.mjs';
 import { compileScene } from './prompt-order.mjs';
 import { positionEditor } from './position.mjs';
@@ -129,7 +130,7 @@ export function composer({context,scenes,config,onAnalyze,onGenerate,onDraft,pre
     }
     function renderFinal(){
         content.append(el('p','ap2-note','그림체·메인 프롬프트·구도·장면·품질 태그를 합친, 실제로 보낼 프롬프트입니다. 확인만 해도 됩니다. 여기서 직접 고치면 이 장면은 입력한 내용만 그대로 전송합니다.'));
-        const preset=activePreset(config);if(preset)content.append(el('p','ap2-muted',`그림체 프리셋 · ${preset.name}`));
+        content.append(presetInfo({presets:config.presets??[],config})); // [add] 씬북+ 프리셋 확인용 표시
         let payload,pageCharacters=null;try{
             let sent=scene(),settings={...withLook(config,config.look??''),references:usableReferences(config.model,config.references??[])};
             if(sent.page?.panels?.length){({scene:sent,config:settings}=compilePage(sent,{...settings,speechBubbles:!!sent.bubbles}));pageCharacters=sent.characters;}

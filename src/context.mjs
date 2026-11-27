@@ -1,4 +1,5 @@
 import { renderAnalysis } from './prompts.mjs';
+import { autoPosition } from './addon/auto-placement.mjs'; // [add]
 // Story data is kept separate from render settings and from generated observations.
 export function normalized(value) { return String(value ?? '').normalize('NFC').replace(/\s+/g, ' ').trim(); }
 export function narrativeBlocks(source) {
@@ -87,6 +88,7 @@ export function scenePosition(scene, context, placement='end') {
     if(!scene||typeof scene!=='object'||Array.isArray(scene))return scene;
     const blocks=context.blocks??[],tail=blocks.at(-1)?.index??1;
     if(!byParagraph(placement))return{...scene,after:tail,evidence:''};
+    if(placement==='auto')return autoPosition(scene,blocks,tail); // [add] 씬북+ 문단 뒤(자동)
     const quote=typeof scene.evidence==='string'&&scene.evidence.length<=2000?normalized(scene.evidence):'';
     // The quote decides; a paragraph number given with it is used only when the quote cannot be found.
     const number=Number(scene.after),numbered=Number.isInteger(number)?blocks.find(b=>b.index===number):null;

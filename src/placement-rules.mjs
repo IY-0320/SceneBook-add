@@ -1,15 +1,18 @@
 // What the chat model is told about where each picture goes. One place for the
 // wording, by placement mode and by the plan format the model writes.
 import { cutMode, cutLimit } from './comic.mjs';
+import { autoPlacementRule, autoSceneCount } from './addon/auto-placement.mjs'; // [add] 씬북+ 문단 뒤(자동) 지시
 const AUTO_COUNT=max=>`When the reply has several clearly different visual moments, write one scene for each, up to ${max}, in reading order; when it has one, write one.`;
 const CUT_ORDER='Write the strips in story order, each after the paragraph it depicts; paragraphs with nothing new to see get no strip.';
 export function sceneCount(config){
+    if(config.placement==='auto'&&!cutMode(config))return autoSceneCount(config.maxScenes); // [add]
     if(cutMode(config))return`Scene count: 1 to ${cutLimit(config)} strips, only as many as the reply needs.`;
     return config.placement==='auto'?`Scene count: 1 to ${config.maxScenes}, one per clearly different moment.`:`Scene count: normally 1, at most ${config.maxScenes}.`;
 }
 // format: text (key: value lines), json, analysis (the separate scene-writing request), lean.
 export function placementRule(config,format){
     const max=config.maxScenes,cuts=cutMode(config);
+    if(config.placement==='auto'&&!cuts)return autoPlacementRule(format,placementRule({...config,placement:'inline'},format)); // [add]
     if(config.placement==='auto'){
         if(format==='analysis')return `Each picture is shown right after the TARGET paragraph it depicts. For every scene set after to that TARGET block index and evidence to an exact phrase of 4 to 12 words copied from that block. ${cuts?CUT_ORDER:AUTO_COUNT(max)}`;
         const where='counting the blank-line-separated paragraphs of your reply from 1';

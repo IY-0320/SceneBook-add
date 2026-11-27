@@ -3,6 +3,7 @@ import { PAGE_FORMATS, PANEL_COUNTS, SCENE_COUNTS, CUT_LAYOUTS } from './comic.m
 import { MODELS, SAMPLERS, usableReferences } from '../plugin/core.mjs';
 import { CLIENT_VERSION, serverAtLeast } from './server-health.mjs';
 import { ADDON_NAME, ADDON_VERSION } from './addon/info.mjs'; // [add] 씬북+ 이름·버전
+import { analysisLengthField } from './addon/analysis-response.mjs'; // [add] 분석 답 길이
 import { showGuide } from './guide.mjs';
 import { imageImport } from './import-ui.mjs';
 import { promptEditor } from './prompt-ui.mjs';
@@ -164,14 +165,20 @@ function promptPage(page,{api,open}){
         button('지시문 편집 · 공유',()=>promptEditor({...api.settings(),...readFields(fields)},value=>{api.saveSettings({...api.settings(),...value});return open('prompt',true);},{initial:'injection'}),false,'fa-pen'));
     saveBar(page,()=>api.saveSettings({...api.settings(),...readFields(fields)}));
 }
+// [add] '프리셋 · 백업'을 펼쳐 두었는지 (탭을 다시 그려도 유지)
+let presetsOpen=false;
 function imagePage(page,{api,open}){
     const c=api.settings(),fields={};
-    // Saved presets switch the art style in one tap; size, seed and automatic illustration stay as they are.
-    const quick=section(page,'그림체 프리셋'),applied=activePreset(c);
-    if(c.presets?.length){
-        const chips=choiceChips('그림체 프리셋',c.presets.map(p=>[p.name,p.name]),applied?.name??'',name=>{const p=api.settings().presets.find(x=>x.name===name);if(!p)return;api.saveSettings(inPresetStyle({...api.settings()},p));notice(`그림체 프리셋 “${name}” 적용 · 다시 그리기도 이 그림체로 그립니다.`);void open('image',true);});
-        quick.append(chips.wrap,el('p','ap2-muted',applied?`적용 중 · ${applied.name}`:'적용 중인 프리셋 없음 · 지금 설정이 어느 프리셋과도 같지 않습니다.'));
-    }else quick.append(el('p','ap2-muted','아래 프리셋 · 백업에서 지금 설정을 프리셋으로 저장하면 여기서 한 번에 바꿀 수 있습니다.'));
+    // [add] 프리셋 · 백업에 저장한 프리셋(그림체)을 바로 고르는 칸. 설정값 저장 대상이 아니므로 fields에 넣지 않습니다.
+    const styleList=c.presets??[],styleActive=api.activeStyle?.()??-1;
+    if(styleList.length){
+        const styleBox=section(page,'프리셋 빠른 선택');
+        const styleField=field('적용할 프리셋',styleActive>=0?String(styleActive):'',{choices:[['','사용 안 함'],...styleList.map((p,i)=>[String(i),p.name])],help:'프리셋 · 백업에 저장한 프리셋(그림체)을 바로 바꿉니다. 이미 만든 그림을 재생성하면 고른 그림체로 다시 그립니다.'});
+        styleBox.append(styleField.wrap);
+        // 아래 자동 저장이 예전 입력값으로 덮어쓰지 않도록 이 칸의 변경은 위로 전달하지 않습니다.
+        for(const type of ['input','change'])styleField.input.addEventListener(type,event=>event.stopPropagation());
+        styleField.input.addEventListener('change',()=>{try{if(styleField.read()==='')api.clearActiveStyle();else api.applyStyle(Number(styleField.read()));}catch(e){notice(e.message,true);}return open('image',true);});
+    }
     const modelBox=section(page,'모델'),modelHelp=el('p','ap2-muted');
     const model=addField(modelBox,fields,'model','NovelAI 모델',c.model,{choices:Object.entries(MODELS).map(([id,m])=>[id,m.label])});modelBox.append(modelHelp);
     const sizeBox=section(page,'크기');
@@ -245,19 +252,17 @@ function imagePage(page,{api,open}){
     addField(analysis,fields,'profileId','연결 프로필',c.profileId,{choices:[['','현재 채팅 연결'],...api.profiles().map(p=>[p.id,p.name])],help:'따로 고르지 않아도 현재 대화에 사용하는 AI로 분석합니다.'});
     addField(analysis,fields,'analysisMode','분석 방식',c.analysisMode,{choices:[['quick','빠르게'],['precise','정밀하게']],help:'정밀 분석은 복장·외형 시점 확인에 LLM을 한 번 더 호출합니다.'});
     addField(analysis,fields,'contextMessages','함께 읽을 이전 메시지',c.contextMessages,{type:'number',min:0,max:30,step:1});
-    // How long the scene-writing reply may be. Thinking models spend part of it on thoughts.
-    const lengthNumber=field('최대 길이 (토큰)',c.analysisLength||16000,{type:'number',min:1000,max:128000,step:1000});
-    const lengthMode=segmented('분석 답 길이',[['auto','자동'],['manual','직접 정하기']],c.analysisLength?'manual':'auto',value=>{lengthNumber.wrap.hidden=value!=='manual';page.dispatchEvent(new Event('input'));});
-    const lengthRow=el('div','ap2-quick-shape');lengthRow.append(el('span','','분석 답 길이'),lengthMode.wrap);lengthNumber.wrap.hidden=!c.analysisLength;
-    fields.analysisLength={read:()=>lengthMode.read()==='manual'?Math.min(128000,Math.max(1000,Math.round(Number(lengthNumber.read())||16000))):0};
-    analysis.append(lengthRow,lengthNumber.wrap,el('p','ap2-muted','자동은 장면 수 × 1,800 (최대 6,000)입니다. 생각하는 모델이 빈 답을 보내면 직접 정하기로 16,000 이상을 주세요.'));
+    // [add] 분석 답 길이: 자동 / 직접 입력 (씬북+ 방식, 씬북 설정과 따로 저장)
+    analysis.append(analysisLengthField({field,notice}));
     analysis.append(button('마지막 답변 분석',()=>api.analyze(),false,'fa-wand-magic-sparkles'));
     saveBar(page,()=>api.saveSettings({...api.settings(),...readFields(fields)}));
-    const presets=foldout(page,'프리셋 · 백업');
+    const presets=foldout(page,'프리셋 · 백업',presetsOpen);
+    // [add] 적용·삭제로 탭을 다시 그려도 펼친 상태를 유지합니다.
+    presets.parentElement.addEventListener('toggle',event=>{presetsOpen=event.target.open;});
     presets.append(el('p','ap2-muted','프리셋은 모델·크기·프롬프트·참조를 묶어 저장합니다.'));
     const presetName=field('새 프리셋 이름','');presetName.input.addEventListener('input',event=>event.stopPropagation());presets.append(presetName.wrap);
     presets.append(button('프리셋 저장',()=>{const name=presetName.read().trim();if(!name)throw new Error('프리셋 이름을 입력하세요.');const latest={...api.settings(),...readFields(fields)},list=[...(latest.presets??[])];if(list.some(p=>p.name===name))throw new Error('같은 이름의 프리셋이 있습니다.');list.push({name,config:latest});api.saveSettings({...latest,presets:list});return open('image',true);},false,'fa-plus'));
-    for(const p of c.presets??[]){const row=el('div','ap2-preset-row');row.append(el('span','',p.name),button('적용',()=>{api.saveSettings({...api.settings(),...p.config,automatic:'off'});notice('프리셋을 적용했습니다. 자동 삽화는 꺼 두었습니다.');return open('image',true);}),button('삭제',async()=>{if(!await confirmAction('프리셋 삭제',`“${p.name}”을 삭제할까요?`))return;const latest=api.settings();api.saveSettings({...latest,presets:latest.presets.filter(item=>item.name!==p.name)});return open('image',true);}));presets.append(row);}
+    for(const [presetIndex,p] of (c.presets??[]).entries()){const row=el('div','ap2-preset-row');row.append(el('span','',p.name));if(presetIndex===styleActive)row.append(el('b','ap2-active-badge','적용 중'));/* [add] 적용 중 표시 */row.append(button('적용',()=>{api.saveSettings({...api.settings(),...p.config,automatic:'off'});api.setActiveStyle?.(p.name);notice('프리셋을 적용했습니다. 자동 삽화는 꺼 두었습니다.');return open('image',true);}),button('삭제',async()=>{if(!await confirmAction('프리셋 삭제',`“${p.name}”을 삭제할까요?`))return;const latest=api.settings();api.saveSettings({...latest,presets:latest.presets.filter(item=>item.name!==p.name)});return open('image',true);}));presets.append(row);}
     const transfer=el('div','ap2-actions');presets.append(transfer);
     transfer.append(button('이전 설정',()=>{const entries=api.settingsHistory(),{dialog,body}=modal('이전 설정');if(!entries.length){body.append(el('p','','저장된 이전 설정이 없습니다. 다음 변경부터 자동 보관합니다.'));return;}for(const entry of entries){const row=el('div','ap2-card');row.append(el('strong','',`${new Date(entry.time).toLocaleString()} · ${entry.reason}`),el('p','ap2-muted',`${MODELS[entry.settings.model]?.label??entry.settings.model??'기존 설정'} · ${entry.settings.width??'?'} × ${entry.settings.height??'?'}`),button('복구',()=>{api.restoreSettings(entry.settings);dialog.close();return open('image',true);}));body.append(row);}},false,'fa-clock-rotate-left'));
     transfer.append(button('내보내기',()=>downloadJson({schema:1,settings:api.settings()},'scenebook-settings.json'),false,'fa-file-export'));
@@ -268,10 +273,10 @@ function imagePage(page,{api,open}){
 function displayPage(page,{api}){
     const c=api.settings(),fields={};
     const place=section(page,'채팅에 보이는 모습','그림이 채팅에서 어떻게 보일지 정합니다. 원본 파일은 바뀌지 않습니다.');
-    addField(place,fields,'placement','그림 위치',c.placement,{choices:[['end','답변 아래'],['inline','문단 뒤'],['auto','AI가 고른 문단 뒤']]});
+    addField(place,fields,'placement','그림 위치',c.placement,{choices:[['end','답변 아래'],['inline','문단 뒤'],['auto','문단 뒤(자동)']]} /* [add] 씬북+ 이름 */);
     addField(place,fields,'displayWidth','최대 너비 (픽셀)',c.displayWidth,{type:'number',min:240,max:1200,step:1});
     addField(place,fields,'compact','작게 표시',c.compact,{type:'checkbox'});
-    addField(place,fields,'imageTools','터치 화면의 그림 위 버튼',c.imageTools,{choices:[['tap','한 번 누르면 보이기'],['always','항상 보이기']],help:'한 번 누르면 보이기: 처음엔 그림만 보이고, 한 번 누르면 수정·재생성 버튼이 나타나며 한 번 더 누르면 크게 봅니다. 마우스로는 그림 위에 올리면 보입니다.'});
+    /* [add] 씬북+는 터치 화면 그림 버튼을 자체 방식으로 보여 줘서 이 선택지는 숨깁니다 */if(false)addField(place,fields,'imageTools','터치 화면의 그림 위 버튼',c.imageTools,{choices:[['tap','한 번 누르면 보이기'],['always','항상 보이기']],help:'한 번 누르면 보이기: 처음엔 그림만 보이고, 한 번 누르면 수정·재생성 버튼이 나타나며 한 번 더 누르면 크게 봅니다. 마우스로는 그림 위에 올리면 보입니다.'});
     const frameBox=section(page,'삽화 액자');
     // Each tile draws its frame with the same code the chat uses.
     let frame=c.frame,frameWide=c.frameWide??'';const frames=el('div','ap2-frame-picker');frames.setAttribute('role','radiogroup');frames.setAttribute('aria-label','삽화 액자');

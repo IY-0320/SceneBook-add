@@ -3,7 +3,8 @@ import { CAMERA_TAGS, ORIENTATIONS, LOOKS, hasCameraTag, toggleCameraTag } from 
 import { presetStyle } from './presets.mjs';
 import { viewpointIssue, fromAbove } from './viewpoint.mjs';
 import { PAGE_FORMATS, PAGE_GRIDS, STRIP_HEIGHTS, gridFor } from './comic.mjs';
-import { el, button, field, modal, segmented } from './ui.mjs';
+import { el, button, field, modal, segmented, notice as addonNotice } from './ui.mjs'; // [add] notice
+import { quickPresetPicker } from './addon/style-presets.mjs'; // [add] 씬북+ 그림체 프리셋
 
 // Under a camera field: a viewpoint no camera can take, in one sentence, with its fix below.
 // `read` returns the scene as it stands; the warning follows every edit.
@@ -30,7 +31,7 @@ export function cameraChips(camera){
 // wrong and generate again into the same place. `config` is that picture's
 // own main prompt, exclusions and look; they are not the saved defaults.
 // `page` is the scene a comic page was drawn from, edited panel by panel.
-export function quickEdit({scene,page=null,config,seed,imageUrl,onRewrite,onGenerate,onDetail}){
+export function quickEdit({scene,page=null,config,seed,imageUrl,onRewrite,onGenerate,onDetail,plusPresets=[]}){ /* [add] plusPresets */
     const {dialog,body}=modal('그림 고치기','고친 뒤 다시 그리면 새 그림이 같은 자리에 추가됩니다. 이전 그림은 버전으로 남습니다.');dialog.classList.add('ap2-quick-edit');
     let draft=structuredClone(page?.page?.panels?.length?page:scene),size='',cast=[],panelFields=[],wasFinal=false;
     const layout=el('div','ap2-edit-layout'),main=el('div','ap2-edit-main');
@@ -51,6 +52,7 @@ export function quickEdit({scene,page=null,config,seed,imageUrl,onRewrite,onGene
         catch(e){status.textContent='고쳐 쓰지 못했습니다. 아래 내용을 직접 고칠 수 있습니다.';throw e;}
     },false,'fa-wand-magic-sparkles');rewrite.title='적은 내용대로 AI가 장면·구도·인물 프롬프트를 고쳐 씁니다. AI 요청이 한 번 발생합니다.';
     const assist=el('section','ap2-quick-assist'),askRow=el('div','ap2-quick-ask');askRow.append(ask.wrap,rewrite);assist.append(askRow,status);main.append(assist);
+    const presetSlot=el('div');main.append(presetSlot); // [add] 씬북+ 그림체 프리셋 자리 (AI로 고쳐 쓰기와 장면 사이)
 
     // A scene whose final prompt was typed by hand is sent exactly as written.
     const exact=el('p','ap2-note');exact.textContent='이 그림은 최종 프롬프트를 직접 고쳐 만들었습니다. 아래 내용이 그대로 전송되며 메인 프롬프트·그림체·구도는 따로 붙지 않습니다.';main.append(exact);
@@ -66,8 +68,10 @@ export function quickEdit({scene,page=null,config,seed,imageUrl,onRewrite,onGene
     const presets=config.presets??[],presetChoice=field('그림체 프리셋',config.presetName??'',{choices:[['','이 그림 그대로'],...presets.map(p=>[p.name,p.name])]});
     presetChoice.input.addEventListener('change',()=>{const p=presets.find(x=>x.name===presetChoice.read());if(!p)return;style.input.value=p.config.style??'';negative.input.value=p.config.negative??'';look.input.value=LOOKS.some(([id])=>id===p.config.look)?p.config.look:'';for(const input of [style.input,negative.input])input.dispatchEvent(new Event('input'));});
     presetChoice.wrap.hidden=!presets.length;
-    styleBox.append(style.wrap,look.wrap);exact.before(presetChoice.wrap); /* [add] 그림체 프리셋은 AI로 고쳐 쓰기와 장면 사이 */
+    styleBox.append(style.wrap,look.wrap); /* [add] 원본 그림체 프리셋 칸 대신 씬북+ 칸을 씁니다 */
     const excludeBox=block('제외할 요소 (UC)'),negative=bare(field('제외할 요소',config.negative??'',{multiline:true,rows:2}));excludeBox.append(negative.wrap,keep.wrap);
+    // [add] 씬북+ 그림체 프리셋: 고르면 메인 프롬프트·제외할 요소·그림체 칸을 채우고, 모델 등은 이번 그림에만 씁니다.
+    const presetPick=quickPresetPicker({presets:plusPresets,config,fields:{style,negative,look},characters:()=>(draft.characters??[]).length,isFinal:()=>!!draft.finalPrompt,field,notice:addonNotice,MODELS});presetSlot.replaceWith(presetPick.wrap);
     const cameraBox=block('구도 · 화면 비율 · 시드'),camera=bare(field('구도','',{placeholder:'예: from side, upper body'})),chips=cameraChips(camera);
     const shape=segmented('화면 비율',[['','그대로'],...ORIENTATIONS.slice(1)],size,value=>{size=value;}),shapeRow=el('div','ap2-quick-shape');shapeRow.append(el('span','','화면 비율'),shape.wrap);
     // The same seed keeps the composition as close as it can, to judge a prompt change alone.
@@ -83,7 +87,7 @@ export function quickEdit({scene,page=null,config,seed,imageUrl,onRewrite,onGene
         // A page drawn before its panels were kept: the people are listed panel after panel.
         const flatPage=final&&/\bFirst panel[,:]/.test(draft.prompt??'');
         exact.textContent=flatPage?'만화 페이지로 그린 그림입니다. 아래 최종 프롬프트가 그대로 전송됩니다. 인물은 나오는 칸마다 따로 적혀 있고, 위 칸부터 차례대로입니다.':'이 그림은 최종 프롬프트를 직접 고쳐 만들었습니다. 아래 내용이 그대로 전송되며 메인 프롬프트·그림체·구도는 따로 붙지 않습니다.';
-        exact.hidden=!final;cameraBox.querySelector('.ap2-chips').hidden=camera.wrap.hidden=final||!!panels;styleBox.hidden=final;presetChoice.wrap.hidden=final||!presets.length; /* [add] */
+        exact.hidden=!final;cameraBox.querySelector('.ap2-chips').hidden=camera.wrap.hidden=final||!!panels;styleBox.hidden=final;
         sceneBox.querySelector('h3').textContent=final?'최종 프롬프트':panels?'모든 칸에 공통':'장면';
         sceneBox.querySelector('header p').textContent=panels?'장소 · 시간 · 빛처럼 모든 칸에 같은 것입니다.':'이 그림의 배경·상황·행동입니다.';
         cameraBox.querySelector('h3').textContent=final||panels?'화면 비율 · 시드':'구도 · 화면 비율 · 시드';
@@ -119,11 +123,11 @@ export function quickEdit({scene,page=null,config,seed,imageUrl,onRewrite,onGene
     // The edited scene, and the picture-level prompts that go with it.
     function read(){
         const final=!!draft.finalPrompt,characters=panelFields.length?draft.characters??[]:(draft.characters??[]).map((c,i)=>({...c,prompt:cast[i].read()}));
-        if(final)return{scene:{...draft,prompt:prompt.read().trim(),negative:negative.read().trim(),camera:'',finalPrompt:true,characters},edits:{}};
+        if(final)return{scene:{...draft,prompt:prompt.read().trim(),negative:negative.read().trim(),camera:'',finalPrompt:true,characters},edits:{...presetPick.extra()}}; /* [add] 프리셋 */
         const page=panelFields.length?{...draft.page,layout:panelLayout.read().trim(),...(gridField?{grid:gridField.read()}:{}),panels:draft.page.panels.map((panel,i)=>({...panel,text:panelFields[i].text.read().trim()||panel.text,...(panelFields[i].height?{height:panelFields[i].height.read()}:{}),
             characters:(panel.characters??[]).map((c,j)=>({...c,prompt:panelFields[i].people[j].read()}))}))}:draft.page;
         return{scene:{...draft,...(page?{page}:{}),camera:panelFields.length?'':camera.read().trim(),prompt:prompt.read().trim(),negative:sceneExclude.wrap.hidden?'':sceneExclude.read().trim(),finalPrompt:false,characters},
-            edits:{...presetStyle(presets.find(p=>p.name===presetChoice.read())),style:style.read().trim(),negative:negative.read().trim(),look:look.read(),presetName:presetChoice.read()}};
+            edits:{...presetPick.extra(),style:style.read().trim(),negative:negative.read().trim(),look:look.read(),presetName:''}}; /* [add] 씬북+ 프리셋 */
     }
     fill();
     const footer=el('footer','ap2-footer ap2-editor-footer'),left=el('div','ap2-actions'),right=el('div','ap2-actions');

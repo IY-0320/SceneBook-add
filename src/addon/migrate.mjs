@@ -1,24 +1,21 @@
-// 씬북+ · 예전 씬북+(0.5.3-add)에서 따로 저장하던 값을 원본 설정 자리로 옮깁니다.
-// 원본 0.5.4부터 같은 기능이 들어와 갤러리에서 뺀 그림은 galleryHidden, 분석 답 길이는 analysisLength에 저장합니다.
+// 씬북+ · 설정 자리 맞추기
+// 씬북+는 갤러리에서 숨긴 그림과 분석 답 길이를 씬북 설정과 따로 저장합니다
+// (autopic2_hidden_jobs, autopic2_analysis_length).
+// 잠깐 나왔던 0.6.2-add.1은 이 값을 원본 설정 자리(galleryHidden, analysisLength)로 옮겼으므로,
+// 그 버전을 썼다면 씬북+ 자리로 다시 가져옵니다.
 const KEY='autopic2';
 export function migrateAddonSettings(store){
     const saved=store[KEY];if(!saved||typeof saved!=='object')return false;
     let changed=false;
-    const hidden=store[`${KEY}_hidden_jobs`];
-    if(hidden!==undefined){
-        if(Array.isArray(hidden)){
-            const list=[...(Array.isArray(saved.galleryHidden)?saved.galleryHidden:[]),...hidden].filter(id=>typeof id==='string'&&id.length<=100);
-            saved.galleryHidden=[...new Set(list)].slice(-5000);
-        }
-        delete store[`${KEY}_hidden_jobs`];changed=true;
+    if(Array.isArray(saved.galleryHidden)&&saved.galleryHidden.length){
+        const mine=Array.isArray(store[`${KEY}_hidden_jobs`])?store[`${KEY}_hidden_jobs`]:[];
+        store[`${KEY}_hidden_jobs`]=[...new Set([...mine,...saved.galleryHidden.filter(id=>typeof id==='string')])].slice(-2000);
+        saved.galleryHidden=[];changed=true;
     }
-    const length=store[`${KEY}_analysis_length`];
-    if(length!==undefined){
-        const value=Math.round(Number(length));
-        if(!saved.analysisLength&&Number.isFinite(value)&&value>=1000&&value<=128000)saved.analysisLength=value;
-        delete store[`${KEY}_analysis_length`];changed=true;
+    const length=Math.round(Number(saved.analysisLength));
+    if(length){
+        if(store[`${KEY}_analysis_length`]===undefined&&length>=1000&&length<=128000)store[`${KEY}_analysis_length`]=length;
+        saved.analysisLength=0;changed=true;
     }
-    // 예전 씬북+가 '직접 고른 프리셋'을 기억하던 자리. 원본은 설정과 같은 프리셋을 적용 중으로 봅니다.
-    try{localStorage.removeItem('scenebook-active-style');}catch{}
     return changed;
 }

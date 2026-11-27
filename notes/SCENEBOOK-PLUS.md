@@ -8,8 +8,12 @@
 - **무엇:** SillyTavern(실리) 확장 **씬북(ST-SceneBook)** 에 기능을 더한 개조판 **씬북+**.
   - 원본: https://github.com/tincansimagine/ST-SceneBook (원작자 허락 받음, GitHub 개조판 제작까지 허락 받음)
   - 이 저장소: https://github.com/IY-0320/SceneBook-add · 작업 브랜치 `claude/scenebook-extension-features-jxvwlo`
-- **기반 버전:** 원본 0.6.2 (`upstream/main` = 8f26b7f). 씬북+ 버전 표기 `0.6.2-add.1`.
-- **중요한 변화 (2026-11, 0.6.2 병합):** 원작자가 0.5.4에서 씬북+ 기능 거의 전부(문단 뒤 자동, 프리셋 빠른 선택·적용 중, 그림 고치기 프리셋, 갤러리 빼기·완전 삭제, 큰 그림 넘기기·확대·순환, 버전 바로 넘기기, 분석 답 길이·응답 읽기 보강, 터치 그림 버튼, 업데이트 뒤 새로고침, 갤러리 체크 표시, 아이콘 색)를 원본에 넣음. → 병합하면서 겹치는 `src/addon/` 모듈은 모두 지우고 원본 구현을 씀.
+- **기반 버전:** 원본 0.6.2 (`upstream/main` = 8f26b7f). 씬북+ 버전 표기 `0.6.2-add.2`.
+- **병합 원칙 (사용자 결정, 0.6.2 병합 때):** 원본 0.5.4가 씬북+ 기능 거의 전부를 원본 방식으로 넣었음. **겹치는 기능은 씬북+ 코드를 쓰고, 원본에서는 새 기능만 가져온다.**
+  - 처음엔 원본 방식으로 바꾼 0.6.2-add.1을 올렸다가 사용자가 되돌리라고 해서 0.6.2-add.2로 다시 만듦. add.1을 설치했던 사람을 위해 `src/addon/migrate.mjs`가 원본 자리(`galleryHidden`, `analysisLength`)의 값을 씬북+ 자리로 되돌림.
+  - 원본에서 가져온 새 기능: 만화 페이지·웹툰 컷(comic.mjs), 답변 후 보조 모델(planSource 'separate'), 다른 탭 생성(persistChat), 구도 순서·시점 교정(viewpoint.mjs), 프롬프트 순서(prompt-order.mjs), 지시문 정리, 최대 응답 길이 안내.
+  - 원본의 겹치는 구현은 지우지 않고 연결만 씬북+ 쪽으로 바꿈(병합이 쉽도록): `src/viewer.mjs`(안 씀), `presets.mjs`의 activePreset(원본 enqueue의 프리셋 기록에만), `analysis-reply.mjs`(안 씀), 원본 `chooseVersion`·`revealTools`·`deleteImages`·`hideFromGallery`·`reloadAfterSceneBookUpdate`(안 씀), 표시 탭의 '터치 화면의 그림 위 버튼'(숨김).
+  - 웹툰 컷은 내부적으로 placement 'auto'를 씀 → 컷일 때는 원본 지시문(CUT_ORDER)을 그대로, 그 밖의 'auto'는 씬북+ 지시문(`placement-rules.mjs`의 [add] 줄).
 - **왜 애드온/스크립트가 아니라 개조판인가:** 원본 index.js는 아무것도 export하지 않아 바깥에서 핵심 동작(문단 자동 배치, 재생성 그림체 등)을 바꿀 수 없음. 그래서 원본 전체 + 추가 코드 구조로 만들고, 원본 업데이트는 git 병합으로 따라감.
 - **원본과 동시에 켜면 안 됨.** 같은 저장 키(`autopic2`), 같은 명령어(`/scenebook`, `/scenegen`), 같은 화면 요소를 씀. 대신 설정·프리셋·삽화가 그대로 이어짐.
 - **이름:** 확장 목록·확장 칸 제목·알림·마법봉 메뉴 모두 "씬북+". (원본 메뉴의 나머지 글자는 그대로 둠)
@@ -17,26 +21,37 @@
 ## 2. 코드 구조 원칙
 
 - 추가 기능 코드는 **`src/addon/`** 에 모으고, 원본 파일에는 **`[add]` 표시가 붙은 짧은 연결 줄만** 넣음.
-- 원본 파일 중 연결 줄이 있는 곳 (0.6.2 기준): `index.js`(설정 옮기기·마법봉 이름·예전 훅 이름), `src/studio.mjs`(이름·버전), `src/quick-edit.mjs`(프리셋 칸 위치), `src/notifications.mjs`(알림 제목), `manifest.json`, `README.md`(맨 위 안내 두 줄).
-- **`style.css`는 건드리지 않음** (원본이 자주 고치는 파일).
+- 원본 파일 중 연결 줄이 있는 곳 (0.6.2 기준): `index.js`, `src/context.mjs`, `src/placement-rules.mjs`, `src/editor.mjs`, `src/studio.mjs`, `src/gallery-ui.mjs`(씬북+ 0.5.3판 + 원본 0.5.6·0.6.2 수정), `src/notifications.mjs`, `src/quick-edit.mjs`, `manifest.json`, `README.md`(맨 위 안내 두 줄).
+- **`style.css`는 건드리지 않음** (원본이 자주 고치는 파일). 씬북+ 전용 CSS는 `src/addon/chat-helpers.mjs`에서 `<style id="ap2-tools-css">`로 넣음.
+- 원본 설정 정리 함수(`cleanSettings`)는 DEFAULTS에 없는 키를 지움 → 씬북+ 전용 값은 `extensionSettings`의 별도 키에 저장:
+  - `autopic2_hidden_jobs` (갤러리에서 숨긴 그림), `autopic2_analysis_length` (분석 답 길이)
+  - 직접 고른 프리셋 이름은 `localStorage['scenebook-active-style']`
 
 ### src/addon 파일
 
 | 파일 | 하는 일 |
 |---|---|
-| `info.mjs` | 화면 이름 `씬북+`, 버전 `${CLIENT_VERSION}-add.1` |
-| `migrate.mjs` | 예전 씬북+(0.5.3-add)가 따로 저장하던 `autopic2_hidden_jobs` → `autopic2.galleryHidden`, `autopic2_analysis_length` → `autopic2.analysisLength`로 한 번 옮기고 옛 키 삭제. `localStorage['scenebook-active-style']` 삭제 |
+| `host.mjs` | 원본 index.js의 함수(settings, saveSettings, scheduleRender, notice, KEY, safeImagePath)를 addon에서 쓰기 위한 연결점. `initialize()`에서 `connect()` |
+| `info.mjs` | 화면 이름 `씬북+`, 버전 `${CLIENT_VERSION}-add.2` |
+| `viewer.mjs` | 큰 그림 보기(원본 openViewer와 같은 모양으로 부름). 예전엔 ui.mjs의 viewer를 고쳐 썼으나 원본이 viewer를 src/viewer.mjs로 옮겨서 addon으로 가져옴 |
+| `migrate.mjs` | 0.6.2-add.1이 원본 자리로 옮긴 갤러리 숨김·분석 답 길이를 씬북+ 자리로 되돌림 |
+| `auto-placement.mjs` | 문단 뒤(자동): `autoPosition`(인용문→문단번호→2-gram 유사도), AI 지시 규칙, 번역 화면용 `anchorByOrder`(문단 수가 같을 때만) |
+| `style-presets.mjs` | 프리셋 빠른 선택, 적용 중 표시, `restyle`(직접 고른 프리셋일 때만 재생성에 반영), 그림 고치기의 프리셋 칸, 최종 확인의 확인용 표시, 큰 그림 제목용 `styleName` |
+| `gallery-delete.mjs` | 갤러리 삭제(실리에서만 숨기기 / 이미지 파일까지 완전 삭제, 모든 스와이프 기록 정리, 채팅 바뀌면 손대지 않음) |
+| `viewer-swipe.mjs` | 큰 그림 좌우 넘기기·←/→ 키, 끝에서 처음으로 순환, 확대 중엔 넘기지 않음 |
+| `zoom.mjs` | 큰 그림 확대(두 손가락·두 번 톡톡·휠·더블클릭·끌기·버튼·+/−/0 키) |
+| `chat-helpers.mjs` | 씬북+ CSS, 터치 화면에서 도구 아이콘 탭해야 보이기, 버전 ‹ › 바로 넘기기 + 자체 저장 큐 |
+| `analysis-response.mjs` | AI가 장면 쓰기 응답 읽기 보강(설명 문장·`<think>`·코드블록 섞여도), 분석 답 길이 설정(자동/직접 입력) |
+| `update-reload.mjs` | manifest `hooks.update`로 업데이트 뒤 자동 새로고침(답변 받는 중엔 대기, 입력창에 글 있으면 안 함) |
 
-- 업데이트 훅: manifest는 원본 이름 `reloadAfterSceneBookUpdate`. 예전 씬북+ manifest의 `onSceneBookUpdate`도 index.js에서 같은 함수로 내보냄(옛 버전에서 업데이트할 때 대비).
-- 예전(0.5.3-add) 씬북+ 코드는 git 기록 `bbe167e` 이전 커밋에 있음.
+## 3. 완성된 기능 (사용자에게 설명할 때 쓰는 말)
 
-## 3. 씬북+에만 있는 것 (사용자에게 설명할 때 쓰는 말)
-
-1. **이름:** 어디서나 "씬북+", 버전 뒤에 `-add.N`.
-2. **그림 고치기(연필)의 그림체 프리셋 칸 위치:** AI로 고쳐 쓰기와 장면 사이 (사용자 요청). 원본은 메인 프롬프트 칸 안 맨 위. 최종 프롬프트를 직접 고친 그림에선 숨김(원본과 같음).
-3. **예전 설정 옮기기:** 갤러리에서 뺀 그림·분석 답 길이.
-
-원본에 들어가며 사용자 요청과 조금 달라진 점: 큰 그림 제목은 "삽화 · 프리셋"이 아니라 원본식 "모델 · 크기 · Seed · 프리셋 이름"(프리셋 이름은 보임). 장면 편집 최종 확인/프롬프트 탭의 프리셋 표시는 원본에 있음.
+1. **문단 뒤(자동):** 표시 → 그림 위치. AI가 장면마다 어울리는 문단 뒤에 그림을 둠. 번역 화면에서도 문단 순서로 같은 자리를 찾음.
+2. **그림체 프리셋:** 그림 설정 맨 위 빠른 선택, 프리셋 · 백업의 "적용 중" 표시, 직접 고른 프리셋으로 재생성, 그림 고치기(연필)에서 그 그림만 다른 프리셋으로(크기·시드 유지), 큰 그림 제목 "삽화 · 프리셋 이름", 장면 편집 → 최종 확인에 확인용 표시.
+3. **큰 그림 보기:** 확대, 채팅 삽화는 같은 장면 버전끼리 넘기기(채팅도 그 버전으로 바뀜), 갤러리는 다른 그림으로, 끝↔처음 순환.
+4. **갤러리 삭제:** ⋯ → 삭제 → 실리에서만 삭제 / 완전히 삭제. 고른 그림엔 체크 표시만(테두리 없음).
+5. **AI 장면 쓰기:** 그림 설정 → 수동 분석 → 분석 답 길이(자동/직접 입력). 빈 답이면 안내.
+6. **편의:** 터치 화면 도구 아이콘, 갤러리 닫아도 확장 칸 유지, 버전 ‹ › 바로 넘기기, 업데이트 뒤 자동 새로고침, 삽화 위 아이콘 흰색 고정.
 
 ## 4. 지금까지 겪은 문제와 교훈 (같은 실수 반복 금지)
 
@@ -79,7 +94,6 @@ mkdir -p data/default-user/user/images/autopic2        # 테스트용 PNG를 <uu
 (setsid nohup node server.js --port 8000 > $W/st.log 2>&1 &)
 ```
 - Playwright(Chromium)는 환경에 설치돼 있음. `notes/test-kit/st-*.cjs`는 `http://127.0.0.1:8000`, 확장 폴더 이름 `SceneBook-add` 기준.
-  - 아래 스크립트 중 일부는 예전 씬북+ 구조 기준이라 0.6.2에선 선택자가 다를 수 있음. `st-merge.cjs`(0.6.2 병합 확인: 설정 옮기기·이름·그림 고치기 프리셋 위치·재생성 설정·큰 그림 제목)가 최신.
   - `st-gen.cjs` AI 장면 쓰기 → 생성 → 문단 삽입(가짜 generateRaw·가짜 NovelAI 응답)
   - `st-len2.cjs` 분석 답 길이 설정 UI·저장·요청 길이
   - `st-ver.cjs`, `st-wrap.cjs` 버전 넘기기·순환·저장
@@ -106,5 +120,5 @@ mkdir -p data/default-user/user/images/autopic2        # 테스트용 PNG를 <uu
 ## 9. 남은 일 / 다음에 할 수 있는 것
 
 - 터묵스가 업데이트 중 꺼지면 로그 받아서 원인 확인.
-- 원본 씬북이 업데이트되면 병합 + 테스트. (0.6.2까지 병합 완료)
+- 원본 씬북이 업데이트되면 병합 + 테스트. (0.6.2까지 병합 완료, 원칙은 위 1번)
 - 저장소 기본 브랜치가 `claude/scenebook-extension-features-jxvwlo` 하나뿐 → 필요하면 `main`으로 정리하는 것 제안해 둠(사용자 결정 대기).
