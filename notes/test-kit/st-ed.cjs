@@ -1,0 +1,11 @@
+const {chromium}=require('playwright');
+(async()=>{const b=await chromium.launch();const p=await b.newPage({viewport:{width:420,height:900}});
+ const errs=[];p.on('pageerror',e=>{if(!/Internal S/.test(e.message))errs.push(e.message)});
+ await p.goto('http://127.0.0.1:8000/');await p.waitForFunction(()=>window.SillyTavern?.getContext?.()?.characters?.length>0,null,{timeout:60000});await p.waitForTimeout(1500);
+ await p.evaluate(async()=>{const c=SillyTavern.getContext();await c.selectCharacterById(0);await new Promise(r=>setTimeout(r,1500));for(const v of Object.values(c.chat[0].extra?.autopic2?.views??{})){v.draft=[];delete v.draftConfig;}Object.assign(c.extensionSettings.autopic2,{style:'zon style',negative:'lowres',model:'nai-diffusion-4-5-curated',look:''});await c.saveChat();});await p.waitForTimeout(2000);
+ p.on('console',m=>{if(m.type()==='error')console.log('console',m.text().slice(0,150))});console.log('buttons',await p.locator('#chat .ap2-mes-button').count());
+ await p.locator('#chat .mes[mesid="0"] .ap2-mes-button.fa-panorama').evaluate(n=>n.click());await p.waitForTimeout(2000);
+ const ed=p.locator('dialog.ap2-editor');console.log('editor',await ed.count(),await p.evaluate(()=>[...document.querySelectorAll('#toast-container .toast-message')].map(t=>t.textContent)));
+ await ed.locator('.ap2-editor-tabs button',{hasText:'최종 확인'}).click();await p.waitForTimeout(400);
+ console.log(await ed.evaluate(n=>({tabs:[...n.querySelectorAll('.ap2-editor-tabs button')].map(b=>b.textContent+':'+b.getAttribute('aria-pressed')),note:n.querySelector('.ap2-editor-content .ap2-note')?.textContent,firstNote:[...n.querySelectorAll('.ap2-editor-content .ap2-note')].map(x=>x.textContent.slice(0,50)),selects:n.querySelectorAll('.ap2-editor-content select').length})));
+ console.log(errs);await b.close();})();

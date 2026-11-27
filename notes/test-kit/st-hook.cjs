@@ -1,0 +1,14 @@
+const {chromium}=require('playwright');
+(async()=>{const b=await chromium.launch();const p=await b.newPage({viewport:{width:1280,height:900}});
+ let loads=0;p.on('load',()=>loads++);
+ await p.goto('http://127.0.0.1:8000/');await p.waitForFunction(()=>window.SillyTavern?.getContext?.()?.characters?.length>0,null,{timeout:60000});await p.waitForTimeout(2000);
+ console.log('처음 load 수',loads);
+ await p.click('#extensions-settings-button .drawer-toggle');await p.waitForTimeout(500);
+ await p.click('#extensions_details');await p.waitForTimeout(3000);
+ const row=p.locator('.extension_block',{hasText:'씬북+'}).first();
+ console.log('확장 줄',await row.count());
+ await row.locator('.btn_update').click();
+ await p.waitForTimeout(6000);
+ console.log('업데이트 후 load 수',loads);
+ await p.waitForFunction(()=>window.SillyTavern?.getContext?.()?.characters?.length>0,null,{timeout:60000});
+ await b.close();})();

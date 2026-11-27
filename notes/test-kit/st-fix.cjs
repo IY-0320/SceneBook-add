@@ -1,0 +1,43 @@
+const {chromium}=require('playwright');
+(async()=>{const b=await chromium.launch();const p=await b.newPage({viewport:{width:900,height:900}});
+ const errs=[];p.on('pageerror',e=>{if(!/Internal S/.test(e.message))errs.push(e.message)});
+ await p.goto('http://127.0.0.1:8000/');await p.waitForFunction(()=>window.SillyTavern?.getContext?.()?.characters?.length>0,null,{timeout:60000});await p.waitForTimeout(1500);
+ const r=await p.evaluate(async()=>{
+   const c=SillyTavern.getContext();await c.selectCharacterById(0);await new Promise(r=>setTimeout(r,1500));
+   const {sourceKey}=await import('/scripts/extensions/third-party/SceneBook-add/plugin/core.mjs');
+   const del=await import('/scripts/extensions/third-party/SceneBook-add/src/addon/gallery-delete.mjs');
+   const m=c.chat[0];const job=(id,u)=>({id,url:`/user/images/autopic2/${u}.png`,status:'done',scene:{prompt:'p'},config:{model:'nai-diffusion-4-5-full',width:832,height:1216},seed:1});
+   const view=src=>({source:src,draft:[],slots:[{id:'s1',anchor:{index:0,quote:'',source:src},versions:[job('keep','11111111-1111-4111-8111-111111111111'),job('gone','44444444-4444-4444-8444-444444444444')],selected:1}]});
+   const mes0=m.mes,mes1='다른 스와이프 답변';
+   m.extra={autopic2:{views:{[sourceKey(mes0,0)]:view(mes0)}}};m.swipes=[mes0,mes1];m.swipe_id=0;
+   m.swipe_info=[{extra:structuredClone(m.extra)},{extra:{autopic2:{views:{[sourceKey(mes1,1)]:view(mes1)}}}}];
+   await c.saveChat();
+   const res=await del.deleteIllustrationImages([job('gone','44444444-4444-4444-8444-444444444444')],true);
+   const versionsOf=extra=>Object.values(extra.autopic2.views)[0].slots[0].versions.map(v=>v.id);
+   const file=(await fetch('/user/images/autopic2/44444444-4444-4444-8444-444444444444.png')).status;
+   return {res,current:versionsOf(m.extra),swipe0:versionsOf(m.swipe_info[0].extra),swipe1:versionsOf(m.swipe_info[1].extra),file};
+ });
+ console.log('완전 삭제',JSON.stringify(r));
+ // 확대 중 화살표 키
+ await p.evaluate(async()=>{const c=SillyTavern.getContext();const m=c.chat[0];m.swipes=[m.mes];m.swipe_info=[m.swipe_info[0]];
+   const {sourceKey}=await import('/scripts/extensions/third-party/SceneBook-add/plugin/core.mjs');
+   const job=(id,u)=>({id,url:`/user/images/autopic2/${u}.png`,status:'done',scene:{prompt:'p'},config:{model:'nai-diffusion-4-5-full',width:832,height:1216},seed:id.length});
+   m.extra={autopic2:{views:{[sourceKey(m.mes,0)]:{source:m.mes,draft:[],slots:[{id:'s1',anchor:{index:0,quote:'',source:m.mes},versions:[job('a','11111111-1111-4111-8111-111111111111'),job('bb','22222222-2222-4222-8222-222222222222')],selected:0}]}}}};
+   await c.saveChat();await c.reloadCurrentChat();});
+ await p.waitForTimeout(1500);
+ await p.locator('#chat .ap2-image-open').first().click();await p.waitForTimeout(500);
+ const sub=()=>p.locator('dialog.ap2-viewer .ap2-header-title p').textContent();
+ const box=await p.locator('dialog.ap2-viewer .ap2-body').boundingBox();
+ await p.mouse.dblclick(box.x+box.width/2,box.y+box.height/2);await p.waitForTimeout(400);
+ await p.keyboard.press('ArrowRight');await p.waitForTimeout(300);console.log('확대 중 → 키:',await sub());
+ await p.keyboard.press('0');await p.waitForTimeout(300);await p.keyboard.press('ArrowRight');await p.waitForTimeout(300);console.log('원래 크기에서 → 키:',await sub());
+ await p.keyboard.press('Escape');await p.waitForTimeout(300);
+ // 업데이트 훅: 입력창에 글이 있으면 새로고침 안 함
+ let loads=0;p.on('load',()=>loads++);
+ await p.fill('#send_textarea','쓰던 글');
+ await p.evaluate(async()=>{const m=await import('/scripts/extensions/third-party/SceneBook-add/index.js');m.onSceneBookUpdate();});
+ await p.waitForTimeout(3000);console.log('글 있을 때 새로고침:',loads,'| 알림',await p.evaluate(()=>[...document.querySelectorAll('#toast-container .toast-message')].map(t=>t.textContent).pop()));
+ await p.fill('#send_textarea','');
+ await p.evaluate(async()=>{const m=await import('/scripts/extensions/third-party/SceneBook-add/index.js');m.onSceneBookUpdate();});
+ await p.waitForTimeout(3500);console.log('글 없을 때 새로고침:',loads);
+ console.log(errs);await b.close();})();

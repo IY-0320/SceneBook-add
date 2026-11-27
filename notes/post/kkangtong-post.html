@@ -1,0 +1,359 @@
+<style>
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css');
+
+body{background:#f4f4f5;}
+
+.sbp, .sbp *{box-sizing:border-box;margin:0;padding:0;}
+.sbp{
+  max-width:760px; margin:0 auto; padding:clamp(14px,4vw,28px) clamp(10px,3.5vw,22px) 40px;
+  font-family:'Pretendard Variable','Pretendard','Apple SD Gothic Neo','Noto Sans KR','Malgun Gothic',sans-serif;
+  line-height:1.75; word-break:keep-all; overflow-wrap:anywhere;
+  font-size:clamp(14px,3.6vw,15.5px);
+}
+/* 글자색 규칙: ① 모든 요소의 글자 채움색은 글자색을 따름 ② class 선택자만 사용 ③ 글자마다 인라인으로 색을 한 번 더 고정 */
+.sbp{color:#1d1d20;color:#1d1d20 !important;}
+.sbp,.sbp *,.sbp *:before,.sbp *:after{-webkit-text-fill-color:currentColor !important;}
+.sbp p,.sbp li,.sbp span,.sbp b,.sbp small,.sbp h1,.sbp h2,.sbp h3,.sbp summary{color:inherit;color:inherit !important;}
+.sbp .sbp-sub, .sbp .sbp-sub *{color:#6b6b73;color:#6b6b73 !important;}
+.sbp .sbp-mute{color:#8e8e96;color:#8e8e96 !important;}
+.sbp b, .sbp strong{color:inherit;color:inherit !important;}
+
+/* ───── 등장 효과 (지원 브라우저에서만) · 위쪽 일부만 들어와도 완전히 선명해집니다 ───── */
+@keyframes sbpRise{from{opacity:0;transform:translateY(22px);}to{opacity:1;transform:none;}}
+@supports (animation-timeline: view()){
+  .sbp .sbp-reveal{animation:sbpRise linear both;animation-timeline:view();animation-range:entry 0% entry 35%;}
+}
+
+/* ───── 히어로: 씬북 큰 그림 화면처럼 어두운 판 + 유리 ───── */
+.sbp .sbp-hero{position:relative;border-radius:22px;padding:clamp(24px,6.5vw,42px) clamp(16px,5vw,34px);
+  background:#0f0f11;clip-path:inset(0 round 22px);isolation:isolate;
+  box-shadow:0 18px 40px -20px rgba(0,0,0,.45);}
+.sbp .sbp-blob{position:absolute;border-radius:50%;filter:blur(40px);z-index:-1;}
+/* 색 방울은 상자 안쪽에만 두고 안쪽으로만 움직입니다. (사이트가 overflow:hidden을 풀어도 화면이 옆으로 밀리지 않게) */
+.sbp .sbp-blob.a{width:min(220px,55%);aspect-ratio:1;background:#ffffff;opacity:.16;top:0;right:0;animation:sbpFloatA 10s ease-in-out infinite;}
+.sbp .sbp-blob.b{width:min(180px,48%);aspect-ratio:1;background:#9a9aa6;opacity:.22;bottom:0;left:0;animation:sbpFloatB 12s ease-in-out infinite;}
+.sbp .sbp-blob.c{width:min(120px,30%);aspect-ratio:1;background:#ffffff;opacity:.08;top:40%;left:42%;animation:sbpFloatA 14s ease-in-out infinite;}
+@keyframes sbpFloatA{0%,100%{transform:translate(0,0);}50%{transform:translate(-20px,16px);}}
+@keyframes sbpFloatB{0%,100%{transform:translate(0,0);}50%{transform:translate(20px,-16px);}}
+
+.sbp .sbp-glass{position:relative;border-radius:16px;padding:clamp(18px,5vw,28px);
+  background:linear-gradient(160deg,rgba(255,255,255,.10),rgba(255,255,255,.03));
+  border:1px solid rgba(255,255,255,.14);
+  backdrop-filter:blur(16px) saturate(140%);-webkit-backdrop-filter:blur(16px) saturate(140%);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.18);}
+.sbp .sbp-glass::before{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;
+  background:linear-gradient(115deg,transparent 32%,rgba(255,255,255,.10) 46%,transparent 60%);
+  background-size:250% 100%;animation:sbpShine 8s ease-in-out infinite;}
+@keyframes sbpShine{0%,60%{background-position:120% 0;}100%{background-position:-120% 0;}}
+
+.sbp .sbp-hero, .sbp .sbp-hero *{color:#f4f4f5;color:#f4f4f5 !important;}
+.sbp .sbp-hero .sbp-eyebrow{display:inline-flex;align-items:center;gap:8px;font-size:.74em;font-weight:600;letter-spacing:.12em;
+  padding:5px 12px;border-radius:999px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.14);color:#c9c9cf;color:#c9c9cf !important;}
+.sbp .sbp-dot{width:6px;height:6px;border-radius:50%;background:#4caf7a;animation:sbpPulse 2.4s infinite;}
+@keyframes sbpPulse{0%{box-shadow:0 0 0 0 rgba(76,175,122,.55);}100%{box-shadow:0 0 0 9px rgba(76,175,122,0);}}
+.sbp .sbp-hero .sbp-title{font-size:clamp(30px,9vw,44px);font-weight:800;letter-spacing:-.02em;line-height:1.15;margin:14px 0 8px;color:#ffffff;color:#ffffff !important;}
+.sbp .sbp-hero .sbp-title b{color:#9a9aa6;color:#9a9aa6 !important;}
+.sbp .sbp-hero .sbp-lead{font-size:clamp(14px,3.8vw,16px);color:#c9c9cf;color:#c9c9cf !important;margin-bottom:18px;}
+.sbp .sbp-chips{display:flex;flex-wrap:wrap;gap:7px;}
+.sbp .sbp-hero .sbp-chip{font-size:.78em;font-weight:500;padding:5px 11px;border-radius:8px;background:rgba(255,255,255,.08);
+  border:1px solid rgba(255,255,255,.12);color:#e4e4e7;color:#e4e4e7 !important;}
+
+/* ───── 섹션 머리 ───── */
+.sbp .sbp-head{display:flex;align-items:flex-end;justify-content:space-between;gap:10px;margin:42px 2px 14px;flex-wrap:wrap;}
+.sbp .sbp-kicker{font-size:.72em;font-weight:700;letter-spacing:.18em;color:#8e8e96;color:#8e8e96 !important;}
+.sbp .sbp-h2{font-size:clamp(20px,5.4vw,24px);font-weight:800;letter-spacing:-.01em;line-height:1.3;color:#1d1d20;color:#1d1d20 !important;}
+.sbp .sbp-headnote{font-size:.82em;color:#8e8e96;color:#8e8e96 !important;}
+
+/* ───── 부드러운 입체 카드 (뉴모피즘, 은은하게) ───── */
+.sbp .sbp-neo{border-radius:16px;background:#f4f4f5;padding:clamp(16px,4.4vw,22px);
+  box-shadow:6px 6px 16px #e1e1e5,-6px -6px 16px #ffffff;}
+.sbp .sbp-notice{display:grid;grid-template-columns:auto 1fr;gap:14px;align-items:start;margin-top:14px;}
+.sbp .sbp-badge{width:38px;height:38px;border-radius:10px;display:grid;place-items:center;font-weight:800;
+  background:#1d1d20;color:#ffffff;color:#ffffff !important;}
+
+/* ───── 기능 카드: 덮개(Cover) → 눌러서 펼치기 ───── */
+.sbp .sbp-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:14px;}
+.sbp .sbp-card{position:relative;border-radius:16px;background:#ffffff;min-height:240px;outline:none;cursor:pointer;
+  border:1px solid #e4e4e7;box-shadow:0 1px 2px rgba(0,0,0,.04);transition:box-shadow .3s ease,transform .3s ease;
+  clip-path:inset(0 round 16px);}
+.sbp .sbp-card:hover,.sbp .sbp-card:focus,.sbp .sbp-card:focus-within{transform:translateY(-2px);box-shadow:0 12px 26px -14px rgba(0,0,0,.25);}
+.sbp .sbp-inner{padding:20px 18px 18px;}
+.sbp .sbp-num{font-size:.72em;font-weight:700;letter-spacing:.14em;color:#8e8e96;color:#8e8e96 !important;}
+.sbp .sbp-h3{font-size:1.08em;font-weight:800;margin:4px 0 8px;line-height:1.4;color:#1d1d20;color:#1d1d20 !important;}
+.sbp .sbp-list{list-style:none;display:grid;gap:7px;margin-top:8px;}
+.sbp .sbp-list li{position:relative;padding-left:15px;font-size:.92em;color:#3f3f46;color:#3f3f46 !important;}
+.sbp .sbp-list li::before{content:"";position:absolute;left:2px;top:.7em;width:5px;height:5px;border-radius:50%;background:#1d1d20;}
+.sbp .sbp-where{display:inline-block;margin-top:12px;font-size:.75em;font-weight:600;padding:4px 9px;border-radius:8px;
+  background:#f0f0f2;color:#6b6b73;color:#6b6b73 !important;}
+
+.sbp .sbp-cover{position:absolute;inset:0;border-radius:16px;padding:20px 18px;display:flex;flex-direction:column;justify-content:space-between;
+  background:var(--g);transition:clip-path .55s cubic-bezier(.7,0,.2,1);clip-path:inset(0 0 0 0 round 16px);z-index:2;}
+.sbp .sbp-card:hover .sbp-cover,.sbp .sbp-card:focus .sbp-cover,.sbp .sbp-card:focus-within .sbp-cover{clip-path:inset(0 0 100% 0 round 16px);}
+.sbp .sbp-cover, .sbp .sbp-cover *{color:var(--t,#ffffff);color:var(--t,#ffffff) !important;}
+.sbp .sbp-cover .sbp-icon{font-size:1.9em;line-height:1;opacity:.9;}
+.sbp .sbp-cover .sbp-ctitle{font-size:1.26em;font-weight:800;line-height:1.35;margin-top:10px;}
+.sbp .sbp-cover .sbp-cdesc{font-size:.88em;opacity:.72;margin-top:6px;}
+.sbp .sbp-cover .sbp-tap{align-self:flex-start;font-size:.72em;font-weight:600;padding:5px 10px;border-radius:8px;
+  background:rgba(127,127,135,.18);animation:sbpNudge 2.8s ease-in-out infinite;}
+@keyframes sbpNudge{0%,100%{transform:translateY(0);}50%{transform:translateY(-3px);}}
+
+/* 덮개 색: 씬북처럼 검정 · 회색 단계만 사용 */
+.sbp .g1,.sbp .g4{--g:#1d1d20;--t:#ffffff;}
+.sbp .g2,.sbp .g5{--g:#3f3f46;--t:#ffffff;}
+.sbp .g3,.sbp .g6{--g:#e4e4e7;--t:#1d1d20;}
+
+/* ───── 큰 그림 보기 미리보기 (씬북 화면을 닮은 예시) ───── */
+.sbp .sbp-mock{margin-top:16px;border-radius:18px;padding:14px;background:#0b0b0c;
+  box-shadow:0 16px 36px -18px rgba(0,0,0,.5);}
+.sbp .sbp-mock, .sbp .sbp-mock *{color:#f4f4f5;color:#f4f4f5 !important;}
+.sbp .sbp-mtop{display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap;padding:2px 4px;}
+.sbp .sbp-mtop b{font-size:1em;}
+.sbp .sbp-mock .sbp-mtop small{font-size:.76em;color:#9a9aa6;color:#9a9aa6 !important;}
+.sbp .sbp-stage{position:relative;margin:12px 0 10px;border-radius:12px;aspect-ratio:16/10;
+  background:linear-gradient(160deg,#2a2a30,#3f3f46 55%,#55555e);clip-path:inset(0 round 12px);}
+.sbp .sbp-stage::after{content:"";position:absolute;inset:0;background:radial-gradient(circle at 30% 30%,rgba(255,255,255,.18),transparent 50%);}
+.sbp .sbp-slide{position:absolute;inset:0;display:grid;place-items:center;font-weight:700;font-size:clamp(15px,4.6vw,20px);
+  opacity:0;animation:sbpSlide 9s infinite;z-index:1;}
+.sbp .sbp-slide:nth-child(2){animation-delay:3s;}
+.sbp .sbp-slide:nth-child(3){animation-delay:6s;}
+@keyframes sbpSlide{0%{opacity:0;transform:translateX(26px);}6%,30%{opacity:1;transform:none;}36%,100%{opacity:0;transform:translateX(-26px);}}
+.sbp .sbp-zoom{position:absolute;right:10px;bottom:10px;display:flex;gap:6px;z-index:2;}
+.sbp .sbp-mock .sbp-zoom span{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;font-weight:700;
+  background:rgba(0,0,0,.6);color:#ffffff;color:#ffffff !important;}
+.sbp .sbp-bar{display:flex;justify-content:space-around;gap:6px;flex-wrap:wrap;}
+.sbp .sbp-bar span{font-size:.78em;padding:6px 10px;border-radius:10px;}
+
+/* ───── 설치 단계 · 자주 묻는 질문 (접기/펼치기) ───── */
+.sbp .sbp-steps{display:grid;gap:14px;counter-reset:st;}
+.sbp .sbp-step{display:grid;grid-template-columns:auto 1fr;gap:14px;align-items:start;}
+.sbp .sbp-step::before{counter-increment:st;content:counter(st);width:32px;height:32px;border-radius:10px;display:grid;place-items:center;
+  font-weight:800;background:#1d1d20;color:#ffffff;color:#ffffff !important;}
+.sbp .sbp-step b{display:block;font-size:1em;color:#1d1d20;color:#1d1d20 !important;}
+.sbp .sbp-step p{font-size:.92em;color:#6b6b73;color:#6b6b73 !important;}
+
+.sbp .sbp-faq{display:grid;gap:10px;}
+.sbp details{border-radius:14px;background:#ffffff;border:1px solid #e4e4e7;transition:background .3s;}
+.sbp details[open]{background:#f0f0f2;border-color:#e4e4e7;}
+.sbp summary{list-style:none;cursor:pointer;padding:15px 44px 15px 16px;font-weight:700;position:relative;color:#1d1d20;color:#1d1d20 !important;}
+.sbp summary::-webkit-details-marker{display:none;}
+.sbp summary::after{content:"+";position:absolute;right:16px;top:50%;transform:translateY(-50%);font-size:1.25em;font-weight:500;
+  color:#8e8e96;color:#8e8e96 !important;transition:transform .3s;}
+.sbp details[open] summary::after{transform:translateY(-50%) rotate(45deg);}
+.sbp .sbp-ans{padding:0 16px 15px;font-size:.92em;color:#3f3f46;color:#3f3f46 !important;animation:sbpOpen .3s ease;}
+@keyframes sbpOpen{from{opacity:0;transform:translateY(-5px);}to{opacity:1;transform:none;}}
+
+/* ───── 라이선스 ───── */
+.sbp .sbp-rules{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr));gap:10px;margin-top:4px;}
+.sbp .sbp-rule{border-radius:14px;padding:15px;background:#ffffff;border:1px solid #e4e4e7;}
+.sbp .sbp-rule b{display:flex;align-items:center;gap:7px;font-size:.94em;margin-bottom:4px;}
+.sbp .sbp-rule b::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--d);flex:none;}
+.sbp .sbp-rule p{font-size:.87em;color:#6b6b73;color:#6b6b73 !important;}
+.sbp .sbp-rule.ok{--d:#4caf7a;}
+.sbp .sbp-rule.no{--d:#e0605c;}
+.sbp .sbp-rule.only{--d:#1d1d20;}
+.sbp .sbp-thanks{margin-top:16px;font-size:.88em;text-align:center;color:#8e8e96;color:#8e8e96 !important;}
+
+/* ───── 다운로드 (마지막) ───── */
+.sbp .sbp-dl{position:relative;margin-top:44px;border-radius:22px;padding:clamp(24px,6.5vw,38px) clamp(16px,5vw,30px);text-align:center;
+  background:#0f0f11;clip-path:inset(0 round 22px);isolation:isolate;}
+.sbp .sbp-dl, .sbp .sbp-dl *{color:#f4f4f5;color:#f4f4f5 !important;}
+.sbp .sbp-dl .sbp-kicker{color:#9a9aa6;color:#9a9aa6 !important;}
+.sbp .sbp-dl .sbp-h2{color:#ffffff;color:#ffffff !important;}
+.sbp .sbp-dl p{color:#c9c9cf;color:#c9c9cf !important;font-size:.94em;}
+.sbp .sbp-btn{display:inline-flex;align-items:center;gap:9px;margin:20px auto 12px;padding:13px 24px;border-radius:12px;text-decoration:none;
+  font-weight:700;font-size:1em;max-width:100%;background:#ffffff;
+  box-shadow:0 10px 24px -12px rgba(255,255,255,.35);transition:transform .25s ease,box-shadow .25s ease;}
+.sbp .sbp-btn:hover,.sbp .sbp-btn:focus{transform:translateY(-2px);box-shadow:0 14px 30px -12px rgba(255,255,255,.45);}
+.sbp .sbp-dl .sbp-btn{color:#0f0f11;color:#0f0f11 !important;}
+.sbp .sbp-dl .sbp-url{display:block;font-family:'D2Coding','Consolas','Menlo',monospace;font-size:.82em;padding:10px 13px;border-radius:10px;
+  background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.1);word-break:break-all;color:#e4e4e7;color:#e4e4e7 !important;}
+.sbp .sbp-dl .sbp-warn{margin-top:12px;font-size:.85em;color:#9a9aa6;color:#9a9aa6 !important;}
+
+@media (max-width:420px){
+  .sbp .sbp-card{min-height:260px;}
+  .sbp .sbp-notice{grid-template-columns:1fr;}
+}
+</style>
+
+<div class="sbp">
+
+  <!-- ───────── 히어로 ───────── -->
+  <header class="sbp-hero sbp-reveal">
+    <span class="sbp-blob a"></span><span class="sbp-blob b"></span><span class="sbp-blob c"></span>
+    <div class="sbp-glass">
+      <span class="sbp-eyebrow" style="color:#c9c9cf;color:#c9c9cf !important;-webkit-text-fill-color:#c9c9cf !important;"><span class="sbp-dot"></span>SCENEBOOK · ADD-ON EDITION</span>
+      <h1 class="sbp-title" style="color:#ffffff;color:#ffffff !important;-webkit-text-fill-color:#ffffff !important;">씬북<b style="color:#9a9aa6;color:#9a9aa6 !important;-webkit-text-fill-color:#9a9aa6 !important;">+</b></h1>
+      <p class="sbp-lead" style="color:#c9c9cf;color:#c9c9cf !important;-webkit-text-fill-color:#c9c9cf !important;">원본 씬북 0.5.3에 편의 기능을 더한 개조판입니다.<br>삽화를 문단 사이에 넣고, 크게 보고, 갤러리에서 정리할 수 있습니다.</p>
+      <div class="sbp-chips">
+        <span class="sbp-chip" style="color:#e4e4e7;color:#e4e4e7 !important;-webkit-text-fill-color:#e4e4e7 !important;">문단 사이 자동 배치</span>
+        <span class="sbp-chip" style="color:#e4e4e7;color:#e4e4e7 !important;-webkit-text-fill-color:#e4e4e7 !important;">그림체 프리셋</span>
+        <span class="sbp-chip" style="color:#e4e4e7;color:#e4e4e7 !important;-webkit-text-fill-color:#e4e4e7 !important;">확대 · 넘겨 보기</span>
+        <span class="sbp-chip" style="color:#e4e4e7;color:#e4e4e7 !important;-webkit-text-fill-color:#e4e4e7 !important;">갤러리 정리</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- ───────── 시작 전에 ───────── -->
+  <div class="sbp-neo sbp-reveal" style="margin-top:26px;">
+    <p class="sbp-kicker" style="color:#8e8e96;color:#8e8e96 !important;-webkit-text-fill-color:#8e8e96 !important;">BEFORE YOU START</p>
+    <div class="sbp-notice">
+      <span class="sbp-badge" style="color:#ffffff;color:#ffffff !important;-webkit-text-fill-color:#ffffff !important;">!</span>
+      <div>
+        <p><b style="color:#1d1d20;color:#1d1d20 !important;-webkit-text-fill-color:#1d1d20 !important;">원본 씬북과 함께 켜지 마세요.</b></p>
+        <p class="sbp-sub" style="color:#6b6b73;color:#6b6b73 !important;-webkit-text-fill-color:#6b6b73 !important;">씬북+는 원본 씬북을 바탕으로 만든 확장입니다. 둘 중 하나만 켜서 사용합니다. 설정, 프리셋, 채팅에 들어간 삽화는 원본과 같은 곳에 저장되므로 그대로 이어집니다.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ───────── 기능 ───────── -->
+  <div class="sbp-head sbp-reveal">
+    <div><p class="sbp-kicker" style="color:#8e8e96;color:#8e8e96 !important;-webkit-text-fill-color:#8e8e96 !important;">FEATURES</p><h2 class="sbp-h2" style="color:#1d1d20;color:#1d1d20 !important;-webkit-text-fill-color:#1d1d20 !important;">무엇이 달라졌나요</h2></div>
+    <p class="sbp-headnote" style="color:#8e8e96;color:#8e8e96 !important;-webkit-text-fill-color:#8e8e96 !important;">카드를 누르면 자세한 내용이 열립니다</p>
+  </div>
+
+  <div class="sbp-grid">
+
+    <article class="sbp-card g1 sbp-reveal" tabindex="0">
+      <div class="sbp-cover"><div><p class="sbp-icon" style="color:#ffffff;color:#ffffff !important;-webkit-text-fill-color:#ffffff !important;">¶</p><p class="sbp-ctitle" style="color:#ffffff;color:#ffffff !important;-webkit-text-fill-color:#ffffff !important;">문단 뒤(자동)</p><p class="sbp-cdesc" style="color:#ffffff;color:#ffffff !important;-webkit-text-fill-color:#ffffff !important;">그림이 이야기 흐름에 맞는 자리에 들어갑니다.</p></div><span class="sbp-tap" style="color:#ffffff;color:#ffffff !important;-webkit-text-fill-color:#ffffff !important;">눌러서 보기</span></div>
+      <div class="sbp-inner">
+        <p class="sbp-num" style="color:#8e8e96;color:#8e8e96 !important;-webkit-text-fill-color:#8e8e96 !important;">01</p><h3 class="sbp-h3" style="color:#1d1d20;color:#1d1d20 !important;-webkit-text-fill-color:#1d1d20 !important;">장면에 어울리는 문단 뒤에 삽화를 넣습니다</h3>
+        <ul class="sbp-list">
+          <li style="color:#3f3f46;color:#3f3f46 !important;-webkit-text-fill-color:#3f3f46 !important;">AI가 장면마다 어느 문단 뒤에 그림을 둘지 정합니다.</li>
+          <li style="color:#3f3f46;color:#3f3f46 !important;-webkit-text-fill-color:#3f3f46 !important;">인용한 문장이 조금 달라도 가장 비슷한 문단을 찾아 붙입니다.</li>
+          <li style="color:#3f3f46;color:#3f3f46 !important;-webkit-text-fill-color:#3f3f46 !important;">번역된 화면에서도 문단 순서로 같은 자리를 찾습니다.</li>
+        </ul>
+        <span class="sbp-where" style="color:#6b6b73;color:#6b6b73 !important;-webkit-text-fill-color:#6b6b73 !important;">표시 → 그림 위치 → 문단 뒤(자동)</span>
+      </div>
+    </article>
+
+    <article class="sbp-card g2 sbp-reveal" tabindex="0">
+      <div class="sbp-cover"><div><p class="sbp-icon" style="color:#ffffff;color:#ffffff !important;-webkit-text-fill-color:#ffffff !important;">✦</p><p class="sbp-ctitle" style="color:#ffffff;color:#ffffff !important;-webkit-text-fill-color:#ffffff !important;">그림체 프리셋</p><p class="sbp-cdesc" style="color:#ffffff;color:#ffffff !important;-webkit-text-fill-color:#ffffff !important;">저장해 둔 그림체를 바로 고르고 확인합니다.</p></div><span class="sbp-tap" style="color:#ffffff;color:#ffffff !important;-webkit-text-fill-color:#ffffff !important;">눌러서 보기</span></div>
+      <div class="sbp-inner">
+        <p class="sbp-num" style="color:#8e8e96;color:#8e8e96 !important;-webkit-text-fill-color:#8e8e96 !important;">02</p><h3 class="sbp-h3" style="color:#1d1d20;color:#1d1d20 !important;-webkit-text-fill-color:#1d1d20 !important;">프리셋으로 그림체를 빠르게 바꿉니다</h3>
+        <ul class="sbp-list">
+          <li style="color:#3f3f46;color:#3f3f46 !important;-webkit-text-fill-color:#3f3f46 !important;">그림 설정 맨 위에서 프리셋을 바로 고르고, 적용 중인 프리셋에 표시가 붙습니다.</li>
+          <li style="color:#3f3f46;color:#3f3f46 !important;-webkit-text-fill-color:#3f3f46 !important;">고른 그림체로 재생성할 수 있습니다. 크기와 시드는 그대로입니다.</li>
+          <li style="color:#3f3f46;color:#3f3f46 !important;-webkit-text-fill-color:#3f3f46 !important;">그림 위 연필(그림 고치기)에서 그 그림만 다른 프리셋으로 다시 그립니다.</li>
+          <li style="color:#3f3f46;color:#3f3f46 !important;-webkit-text-fill-color:#3f3f46 !important;">큰 그림 제목에 어떤 프리셋이 쓰였는지 보입니다.</li>
+        </ul>
+        <span class="sbp-where" style="color:#6b6b73;color:#6b6b73 !important;-webkit-text-fill-color:#6b6b73 !important;">그림 설정 · 그림 고치기 · 큰 그림 보기</span>
+      </div>
+    </article>
+
+    <article class="sbp-card g3 sbp-reveal" tabindex="0">
+      <div class="sbp-cover"><div><p class="sbp-icon" style="color:#1d1d20;color:#1d1d20 !important;-webkit-text-fill-color:#1d1d20 !important;">⤢</p><p class="sbp-ctitle" style="color:#1d1d20;color:#1d1d20 !important;-webkit-text-fill-color:#1d1d20 !important;">큰 그림 보기</p><p class="sbp-cdesc" style="color:#1d1d20;color:#1d1d20 !important;-webkit-text-fill-color:#1d1d20 !important;">확대하고, 옆으로 밀어 넘겨 봅니다.</p></div><span class="sbp-tap" style="color:#1d1d20;color:#1d1d20 !important;-webkit-text-fill-color:#1d1d20 !important;">눌러서 보기</span></div>
+      <div class="sbp-inner">
+        <p class="sbp-num" style="color:#8e8e96;color:#8e8e96 !important;-webkit-text-fill-color:#8e8e96 !important;">03</p><h3 class="sbp-h3" style="color:#1d1d20;color:#1d1d20 !important;-webkit-text-fill-color:#1d1d20 !important;">그림을 크게, 편하게 봅니다</h3>
+        <ul class="sbp-list">
+          <li style="color:#3f3f46;color:#3f3f46 !important;-webkit-text-fill-color:#3f3f46 !important;">두 손가락으로 벌리거나 두 번 톡톡 눌러 확대합니다. PC는 마우스 휠을 씁니다.</li>
+          <li style="color:#3f3f46;color:#3f3f46 !important;-webkit-text-fill-color:#3f3f46 !important;">채팅 삽화는 같은 장면을 다시 그린 그림끼리, 갤러리는 다른 그림으로 넘어갑니다.</li>
+          <li style="color:#3f3f46;color:#3f3f46 !important;-webkit-text-fill-color:#3f3f46 !important;">마지막 그림에서 더 밀면 첫 그림으로 돌아갑니다.</li>
+        </ul>
+        <span class="sbp-where" style="color:#6b6b73;color:#6b6b73 !important;-webkit-text-fill-color:#6b6b73 !important;">채팅 삽화 · 갤러리 그림 누르기</span>
+      </div>
+    </article>
+
+    <article class="sbp-card g4 sbp-reveal" tabindex="0">
+      <div class="sbp-cover"><div><p class="sbp-icon" style="color:#ffffff;color:#ffffff !important;-webkit-text-fill-color:#ffffff !important;">▦</p><p class="sbp-ctitle" style="color:#ffffff;color:#ffffff !important;-webkit-text-fill-color:#ffffff !important;">갤러리 정리</p><p class="sbp-cdesc" style="color:#ffffff;color:#ffffff !important;-webkit-text-fill-color:#ffffff !important;">필요 없는 그림을 골라서 지웁니다.</p></div><span class="sbp-tap" style="color:#ffffff;color:#ffffff !important;-webkit-text-fill-color:#ffffff !important;">눌러서 보기</span></div>
+      <div class="sbp-inner">
+        <p class="sbp-num" style="color:#8e8e96;color:#8e8e96 !important;-webkit-text-fill-color:#8e8e96 !important;">04</p><h3 class="sbp-h3" style="color:#1d1d20;color:#1d1d20 !important;-webkit-text-fill-color:#1d1d20 !important;">두 가지 방법으로 지웁니다</h3>
+        <ul class="sbp-list">
+          <li style="color:#3f3f46;color:#3f3f46 !important;-webkit-text-fill-color:#3f3f46 !important;"><b style="color:#3f3f46;color:#3f3f46 !important;-webkit-text-fill-color:#3f3f46 !important;">실리에서만 삭제</b> · 갤러리에서만 숨깁니다. 그림 파일은 남습니다.</li>
+          <li style="color:#3f3f46;color:#3f3f46 !important;-webkit-text-fill-color:#3f3f46 !important;"><b style="color:#3f3f46;color:#3f3f46 !important;-webkit-text-fill-color:#3f3f46 !important;">완전히 삭제</b> · 그림 파일까지 지웁니다. 되돌릴 수 없습니다.</li>
+          <li style="color:#3f3f46;color:#3f3f46 !important;-webkit-text-fill-color:#3f3f46 !important;">지울 그림을 눌러 체크 표시로 고릅니다.</li>
+        </ul>
+        <span class="sbp-where" style="color:#6b6b73;color:#6b6b73 !important;-webkit-text-fill-color:#6b6b73 !important;">갤러리 → ⋯ → 삭제</span>
+      </div>
+    </article>
+
+    <article class="sbp-card g5 sbp-reveal" tabindex="0">
+      <div class="sbp-cover"><div><p class="sbp-icon" style="color:#ffffff;color:#ffffff !important;-webkit-text-fill-color:#ffffff !important;">✎</p><p class="sbp-ctitle" style="color:#ffffff;color:#ffffff !important;-webkit-text-fill-color:#ffffff !important;">AI 장면 쓰기</p><p class="sbp-cdesc" style="color:#ffffff;color:#ffffff !important;-webkit-text-fill-color:#ffffff !important;">AI가 장면을 쓸 때 답할 길이를 정합니다.</p></div><span class="sbp-tap" style="color:#ffffff;color:#ffffff !important;-webkit-text-fill-color:#ffffff !important;">눌러서 보기</span></div>
+      <div class="sbp-inner">
+        <p class="sbp-num" style="color:#8e8e96;color:#8e8e96 !important;-webkit-text-fill-color:#8e8e96 !important;">05</p><h3 class="sbp-h3" style="color:#1d1d20;color:#1d1d20 !important;-webkit-text-fill-color:#1d1d20 !important;">장면을 쓸 답 길이를 직접 정합니다</h3>
+        <ul class="sbp-list">
+          <li style="color:#3f3f46;color:#3f3f46 !important;-webkit-text-fill-color:#3f3f46 !important;">AI가 답할 수 있는 길이를 자동 또는 직접 입력으로 정합니다.</li>
+          <li style="color:#3f3f46;color:#3f3f46 !important;-webkit-text-fill-color:#3f3f46 !important;">답이 비어 있으면 무엇을 바꾸면 되는지 알려 줍니다.</li>
+        </ul>
+        <span class="sbp-where" style="color:#6b6b73;color:#6b6b73 !important;-webkit-text-fill-color:#6b6b73 !important;">그림 설정 → 수동 분석 → 분석 답 길이</span>
+      </div>
+    </article>
+
+    <article class="sbp-card g6 sbp-reveal" tabindex="0">
+      <div class="sbp-cover"><div><p class="sbp-icon" style="color:#1d1d20;color:#1d1d20 !important;-webkit-text-fill-color:#1d1d20 !important;">◎</p><p class="sbp-ctitle" style="color:#1d1d20;color:#1d1d20 !important;-webkit-text-fill-color:#1d1d20 !important;">작은 편의 기능</p><p class="sbp-cdesc" style="color:#1d1d20;color:#1d1d20 !important;-webkit-text-fill-color:#1d1d20 !important;">자주 쓰는 동작을 편하게 쓸 수 있습니다.</p></div><span class="sbp-tap" style="color:#1d1d20;color:#1d1d20 !important;-webkit-text-fill-color:#1d1d20 !important;">눌러서 보기</span></div>
+      <div class="sbp-inner">
+        <p class="sbp-num" style="color:#8e8e96;color:#8e8e96 !important;-webkit-text-fill-color:#8e8e96 !important;">06</p><h3 class="sbp-h3" style="color:#1d1d20;color:#1d1d20 !important;-webkit-text-fill-color:#1d1d20 !important;">자주 쓰는 동작을 편하게</h3>
+        <ul class="sbp-list">
+          <li style="color:#3f3f46;color:#3f3f46 !important;-webkit-text-fill-color:#3f3f46 !important;">휴대폰에서는 그림을 한 번 눌러야 수정·재생성 아이콘이 보입니다.</li>
+          <li style="color:#3f3f46;color:#3f3f46 !important;-webkit-text-fill-color:#3f3f46 !important;">갤러리에서 그림을 닫으면 보던 갤러리로 돌아갑니다.</li>
+          <li style="color:#3f3f46;color:#3f3f46 !important;-webkit-text-fill-color:#3f3f46 !important;">씬북+를 업데이트하면 페이지가 자동으로 새로고침됩니다.</li>
+        </ul>
+        <span class="sbp-where" style="color:#6b6b73;color:#6b6b73 !important;-webkit-text-fill-color:#6b6b73 !important;">채팅 · 갤러리 · 확장 관리</span>
+      </div>
+    </article>
+
+  </div>
+
+  <!-- ───────── 큰 그림 보기 미리보기 ───────── -->
+  <div class="sbp-mock sbp-reveal">
+    <div class="sbp-mtop"><b style="color:#f4f4f5;color:#f4f4f5 !important;-webkit-text-fill-color:#f4f4f5 !important;">삽화 · 나의 그림체</b><small style="color:#9a9aa6;color:#9a9aa6 !important;-webkit-text-fill-color:#9a9aa6 !important;">V5 Full · 832 × 1216 · 2 / 3</small></div>
+    <div class="sbp-stage">
+      <div class="sbp-slide" style="color:#f4f4f5;color:#f4f4f5 !important;-webkit-text-fill-color:#f4f4f5 !important;">첫 번째 그림</div>
+      <div class="sbp-slide" style="color:#f4f4f5;color:#f4f4f5 !important;-webkit-text-fill-color:#f4f4f5 !important;">다시 그린 그림</div>
+      <div class="sbp-slide" style="color:#f4f4f5;color:#f4f4f5 !important;-webkit-text-fill-color:#f4f4f5 !important;">또 다른 버전</div>
+      <div class="sbp-zoom"><span style="color:#ffffff;color:#ffffff !important;-webkit-text-fill-color:#ffffff !important;">−</span><span style="color:#ffffff;color:#ffffff !important;-webkit-text-fill-color:#ffffff !important;">+</span></div>
+    </div>
+    <div class="sbp-bar"><span style="color:#f4f4f5;color:#f4f4f5 !important;-webkit-text-fill-color:#f4f4f5 !important;">✎ 수정</span><span style="color:#f4f4f5;color:#f4f4f5 !important;-webkit-text-fill-color:#f4f4f5 !important;">↻ 재생성</span><span style="color:#f4f4f5;color:#f4f4f5 !important;-webkit-text-fill-color:#f4f4f5 !important;">⇩ 저장</span><span style="color:#f4f4f5;color:#f4f4f5 !important;-webkit-text-fill-color:#f4f4f5 !important;">⋯ 더 보기</span></div>
+  </div>
+  <p class="sbp-mute" style="text-align:center;font-size:.8em;margin-top:8px;color:#8e8e96;color:#8e8e96 !important;-webkit-text-fill-color:#8e8e96 !important;">큰 그림 보기 화면 예시입니다. 제목 옆에 쓰인 그림체가 함께 보입니다.</p>
+
+  <!-- ───────── 설치 ───────── -->
+  <div class="sbp-head sbp-reveal">
+    <div><p class="sbp-kicker" style="color:#8e8e96;color:#8e8e96 !important;-webkit-text-fill-color:#8e8e96 !important;">INSTALL</p><h2 class="sbp-h2" style="color:#1d1d20;color:#1d1d20 !important;-webkit-text-fill-color:#1d1d20 !important;">설치는 세 단계면 됩니다</h2></div>
+  </div>
+  <div class="sbp-neo sbp-reveal">
+    <div class="sbp-steps">
+      <div class="sbp-step"><div><b style="color:#1d1d20;color:#1d1d20 !important;-webkit-text-fill-color:#1d1d20 !important;">원본 씬북을 끕니다</b><p style="color:#6b6b73;color:#6b6b73 !important;-webkit-text-fill-color:#6b6b73 !important;">확장 관리에서 원본 씬북을 끄거나 삭제합니다. 설정과 삽화는 그대로 남습니다.</p></div></div>
+      <div class="sbp-step"><div><b style="color:#1d1d20;color:#1d1d20 !important;-webkit-text-fill-color:#1d1d20 !important;">씬북+를 설치합니다</b><p style="color:#6b6b73;color:#6b6b73 !important;-webkit-text-fill-color:#6b6b73 !important;">확장 → Install extension에 글 맨 아래의 다운로드 주소를 넣습니다.</p></div></div>
+      <div class="sbp-step"><div><b style="color:#1d1d20;color:#1d1d20 !important;-webkit-text-fill-color:#1d1d20 !important;">페이지를 새로고침합니다</b><p style="color:#6b6b73;color:#6b6b73 !important;-webkit-text-fill-color:#6b6b73 !important;">서버 플러그인은 원본 씬북의 것을 그대로 씁니다. 이미 설치했다면 바꿀 필요가 없습니다.</p></div></div>
+    </div>
+  </div>
+
+  <!-- ───────── 자주 묻는 질문 ───────── -->
+  <div class="sbp-head sbp-reveal">
+    <div><p class="sbp-kicker" style="color:#8e8e96;color:#8e8e96 !important;-webkit-text-fill-color:#8e8e96 !important;">Q &amp; A</p><h2 class="sbp-h2" style="color:#1d1d20;color:#1d1d20 !important;-webkit-text-fill-color:#1d1d20 !important;">자주 묻는 질문</h2></div>
+  </div>
+  <div class="sbp-faq">
+    <details class="sbp-reveal"><summary style="color:#1d1d20;color:#1d1d20 !important;-webkit-text-fill-color:#1d1d20 !important;">AI가 장면 쓰기에서 빈 답이 온다고 나옵니다</summary>
+      <p class="sbp-ans" style="color:#3f3f46;color:#3f3f46 !important;-webkit-text-fill-color:#3f3f46 !important;">생각(추론)하는 AI는 답할 길이를 생각에 다 써 버릴 때가 있습니다. 그림 설정 → 수동 분석 → <b style="color:#3f3f46;color:#3f3f46 !important;-webkit-text-fill-color:#3f3f46 !important;">분석 답 길이</b>를 직접 입력으로 바꾸고 16,000 정도로 늘려 보세요. 대화 AI의 생각 수준을 낮추거나, 장면 쓰기에만 빠른 모델을 연결 프로필로 골라도 좋습니다.</p></details>
+    <details class="sbp-reveal"><summary style="color:#1d1d20;color:#1d1d20 !important;-webkit-text-fill-color:#1d1d20 !important;">재생성했는데 그림체가 바뀌지 않습니다</summary>
+      <p class="sbp-ans" style="color:#3f3f46;color:#3f3f46 !important;-webkit-text-fill-color:#3f3f46 !important;">재생성에는 <b style="color:#3f3f46;color:#3f3f46 !important;-webkit-text-fill-color:#3f3f46 !important;">직접 고른</b> 프리셋만 반영됩니다. 그림 설정 맨 위의 프리셋 빠른 선택이나 프리셋 · 백업의 적용 버튼으로 한 번 골라 주세요.</p></details>
+    <details class="sbp-reveal"><summary style="color:#1d1d20;color:#1d1d20 !important;-webkit-text-fill-color:#1d1d20 !important;">원본 씬북으로 돌아갈 수 있나요?</summary>
+      <p class="sbp-ans" style="color:#3f3f46;color:#3f3f46 !important;-webkit-text-fill-color:#3f3f46 !important;">네. 씬북+를 끄고 원본 씬북을 켜면 됩니다. 설정과 삽화는 같은 곳에 저장되어 그대로 보입니다. 문단 뒤(자동)는 원본에 없으므로 그림 위치만 다시 골라 주세요.</p></details>
+    <details class="sbp-reveal"><summary style="color:#1d1d20;color:#1d1d20 !important;-webkit-text-fill-color:#1d1d20 !important;">원본 씬북이 업데이트되면 어떻게 되나요?</summary>
+      <p class="sbp-ans" style="color:#3f3f46;color:#3f3f46 !important;-webkit-text-fill-color:#3f3f46 !important;">원본의 새 버전을 씬북+에 합친 뒤 씬북+ 버전을 올립니다. 확장 관리에서 씬북+를 업데이트하면 원본의 새 기능과 씬북+ 기능을 함께 받습니다.</p></details>
+  </div>
+
+  <!-- ───────── 라이선스 ───────── -->
+  <div class="sbp-head sbp-reveal">
+    <div><p class="sbp-kicker" style="color:#8e8e96;color:#8e8e96 !important;-webkit-text-fill-color:#8e8e96 !important;">LICENSE</p><h2 class="sbp-h2" style="color:#1d1d20;color:#1d1d20 !important;-webkit-text-fill-color:#1d1d20 !important;">사용 규칙</h2></div>
+    <p class="sbp-headnote" style="color:#8e8e96;color:#8e8e96 !important;-webkit-text-fill-color:#8e8e96 !important;">씬북+에서 추가한 부분에 적용됩니다</p>
+  </div>
+  <div class="sbp-rules">
+    <div class="sbp-rule ok"><b style="color:#1d1d20;color:#1d1d20 !important;-webkit-text-fill-color:#1d1d20 !important;">비영리 사용 가능</b><p style="color:#6b6b73;color:#6b6b73 !important;-webkit-text-fill-color:#6b6b73 !important;">개인적으로 사용하고, 자신이 쓰기 위해 수정할 수 있습니다.</p></div>
+    <div class="sbp-rule no"><b style="color:#1d1d20;color:#1d1d20 !important;-webkit-text-fill-color:#1d1d20 !important;">영리 목적 사용 금지</b><p style="color:#6b6b73;color:#6b6b73 !important;-webkit-text-fill-color:#6b6b73 !important;">판매, 유료 제공, 후원·멤버십 보상 등 금전적 이익을 위한 사용을 금지합니다.</p></div>
+    <div class="sbp-rule only"><b style="color:#1d1d20;color:#1d1d20 !important;-webkit-text-fill-color:#1d1d20 !important;">수정 재업로드는 깡통에서만</b><p style="color:#6b6b73;color:#6b6b73 !important;-webkit-text-fill-color:#6b6b73 !important;">수정한 결과물은 오직 '깡통' 사이트에서만 재업로드할 수 있습니다. 출처와 라이선스를 함께 표시합니다.</p></div>
+  </div>
+  <p class="sbp-thanks" style="color:#8e8e96;color:#8e8e96 !important;-webkit-text-fill-color:#8e8e96 !important;">원본 씬북의 권리는 원작자에게 있습니다. 원작자의 허락을 받아 개조했습니다.<br>원본 씬북을 만들어 주신 원작자와, 씬북이 참고한 오토픽(AutoPic) 제작자께 감사드립니다.</p>
+
+  <!-- ───────── 다운로드 (마지막) ───────── -->
+  <section class="sbp-dl">
+    <span class="sbp-blob a"></span><span class="sbp-blob b"></span>
+    <p class="sbp-kicker" style="color:#9a9aa6;color:#9a9aa6 !important;-webkit-text-fill-color:#9a9aa6 !important;">DOWNLOAD</p>
+    <h2 class="sbp-h2" style="color:#ffffff;color:#ffffff !important;-webkit-text-fill-color:#ffffff !important;">씬북+ 받기</h2>
+    <p style="color:#c9c9cf;color:#c9c9cf !important;-webkit-text-fill-color:#c9c9cf !important;">아래 버튼으로 GitHub 페이지를 열거나, 주소를 복사해 SillyTavern의 Install extension에 넣어 설치합니다.</p>
+    <a class="sbp-btn" href="https://github.com/IY-0320/SceneBook-add" target="_blank" rel="noopener noreferrer" style="color:#0f0f11;color:#0f0f11 !important;-webkit-text-fill-color:#0f0f11 !important;">⇩ GitHub에서 씬북+ 받기</a>
+    <span class="sbp-url" style="color:#e4e4e7;color:#e4e4e7 !important;-webkit-text-fill-color:#e4e4e7 !important;">https://github.com/IY-0320/SceneBook-add</span>
+    <p class="sbp-warn" style="color:#9a9aa6;color:#9a9aa6 !important;-webkit-text-fill-color:#9a9aa6 !important;">원본 씬북은 꼭 끈 뒤에 설치해 주세요.</p>
+  </section>
+
+</div>
