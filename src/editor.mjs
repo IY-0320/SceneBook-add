@@ -1,6 +1,6 @@
 import { MODELS, buildPayload, normalizeScene, usableReferences } from '../plugin/core.mjs';
 import { activePreset } from './presets.mjs';
-import { PAGE_FORMATS, compilePage } from './comic.mjs';
+import { PAGE_FORMATS, PAGE_GRIDS, STRIP_HEIGHTS, gridFor, compilePage } from './comic.mjs';
 import { positionEditor } from './position.mjs';
 import { sceneBundle, readSceneBundle } from './editor-data.mjs';
 import { showGuide } from './guide.mjs';
@@ -72,12 +72,17 @@ export function composer({context,scenes,config,onAnalyze,onGenerate,onDraft,pre
             const pageBox=part(sceneSide,'만화 페이지',`${page.panels.length}칸 · V5에서만 그립니다.`);
             const kind=field('형식',scene().pageFormat??'manga',{choices:[...PAGE_FORMATS.filter(([id])=>id!=='single').map(([id,label])=>[id,label]),['single','한 장면으로 바꾸기']]});
             kind.input.addEventListener('change',()=>{snapshot();if(kind.read()==='single'){delete scene().page;delete scene().pageFormat;}else scene().pageFormat=kind.read();renderContent();});
-            const layout=field('칸 배치',page.layout,{multiline:true,rows:2,placeholder:'예: top panel largest spanning the full width, two equal panels below'});layout.input.addEventListener('input',()=>{page.layout=layout.read();});
-            pageBox.append(kind.wrap,layout.wrap);
+            const webtoon=(scene().pageFormat??'manga')==='webtoon',grids=page.local&&!webtoon?PAGE_GRIDS[page.panels.length]:null;
+            pageBox.append(kind.wrap);
+            // A planned page sits on a grid; a page from before grids has only its layout sentence.
+            if(grids){const grid=field('칸 나눔',gridFor(page)[0],{choices:grids.map(([id,label])=>[id,label])});grid.input.addEventListener('change',()=>{page.grid=grid.read();});pageBox.append(grid.wrap);}
+            const layout=field(page.local?'칸 배치 직접 쓰기':'칸 배치',page.layout,{multiline:true,rows:2,placeholder:page.local?(webtoon?'비워 두면 칸 높이대로 그립니다':'비워 두면 칸 나눔대로 그립니다'):'예: top panel largest spanning the full width, two equal panels below'});layout.input.addEventListener('input',()=>{page.layout=layout.read();});
+            pageBox.append(layout.wrap);
             // Each panel, then the people in it: the same person is written again for every panel.
             page.panels.forEach((panel,i)=>{
                 const group=el('section','ap2-quick-panel'),f=bare(field(`${i+1}번째 칸`,panel.text,{multiline:true,rows:3}));f.input.addEventListener('input',()=>{panel.text=f.read();});
                 group.append(el('h4','',`${i+1}번째 칸`),f.wrap);
+                if(webtoon&&page.local){const h=field('칸 높이',panel.height??'medium',{choices:STRIP_HEIGHTS});h.input.addEventListener('change',()=>{panel.height=h.read();});group.append(h.wrap);}
                 for(const c of panel.characters??[]){const g=field(c.name||'인물',c.prompt??'',{multiline:true,rows:2});g.input.addEventListener('input',()=>{c.prompt=g.read();});group.append(g.wrap);}
                 pageBox.append(group);
             });

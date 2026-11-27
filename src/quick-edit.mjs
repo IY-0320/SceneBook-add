@@ -1,7 +1,7 @@
 import { MODELS, safeImagePath } from '../plugin/core.mjs';
 import { CAMERA_TAGS, ORIENTATIONS, LOOKS, hasCameraTag, toggleCameraTag } from './framing.mjs';
 import { presetStyle } from './presets.mjs';
-import { PAGE_FORMATS } from './comic.mjs';
+import { PAGE_FORMATS, PAGE_GRIDS, STRIP_HEIGHTS, gridFor } from './comic.mjs';
 import { el, button, field, modal, segmented } from './ui.mjs';
 
 // Camera shortcuts: one viewpoint and one shot size at a time.
@@ -46,7 +46,8 @@ export function quickEdit({scene,page=null,config,seed,imageUrl,onRewrite,onGene
     const sceneBox=block('장면','이 그림의 배경·상황·행동입니다.'),prompt=bare(field('장면','',{multiline:true,rows:3}));sceneBox.append(prompt.wrap);
     const sceneExclude=field('이 장면에서만 제외','',{multiline:true,rows:2});sceneBox.append(sceneExclude.wrap);
     // A comic page: each panel with the people in it. The same person appears once per panel.
-    const pageBox=block('칸','같은 인물도 칸마다 자세 · 표정 · 행동을 따로 적습니다.'),panelLayout=field('칸 배치','',{multiline:true,rows:2}),panelList=el('div','ap2-quick-panels');pageBox.append(panelLayout.wrap,panelList);
+    const pageBox=block('칸','같은 인물도 칸마다 자세 · 표정 · 행동을 따로 적습니다.'),panelLayout=field('칸 배치','',{multiline:true,rows:2}),panelList=el('div','ap2-quick-panels');
+    let gridField=null;const gridSlot=el('div','');pageBox.append(gridSlot,panelLayout.wrap,panelList);
     const styleBox=block('메인 프롬프트','이 그림에 쓴 화풍·공통 태그입니다. 여기서 고치면 이 그림에만 적용됩니다.');
     const look=field('그림체',LOOKS.some(([id])=>id===config.look)?config.look:'',{choices:LOOKS.map(([id,label])=>[id,label])});
     const style=bare(field('메인 프롬프트',config.style??'',{multiline:true,rows:3})),keep=field('앞으로 그릴 그림에도 적용',false,{type:'checkbox',help:'메인 프롬프트·제외할 요소·그림체를 기본 설정에도 저장합니다.'});
@@ -66,7 +67,7 @@ export function quickEdit({scene,page=null,config,seed,imageUrl,onRewrite,onGene
     function fill(){
         const final=!!draft.finalPrompt,panels=!final&&draft.page?.panels?.length?draft.page.panels:null;
         // A page drawn before its panels were kept: the people are listed panel after panel.
-        const flatPage=final&&/\bFirst panel:/.test(draft.prompt??'');
+        const flatPage=final&&/\bFirst panel[,:]/.test(draft.prompt??'');
         exact.textContent=flatPage?'만화 페이지로 그린 그림입니다. 아래 최종 프롬프트가 그대로 전송됩니다. 인물은 나오는 칸마다 따로 적혀 있고, 위 칸부터 차례대로입니다.':'이 그림은 최종 프롬프트를 직접 고쳐 만들었습니다. 아래 내용이 그대로 전송되며 메인 프롬프트·그림체·구도는 따로 붙지 않습니다.';
         exact.hidden=!final;cameraBox.querySelector('.ap2-chips').hidden=camera.wrap.hidden=final||!!panels;styleBox.hidden=final;
         sceneBox.querySelector('h3').textContent=final?'최종 프롬프트':panels?'모든 칸에 공통':'장면';
@@ -83,11 +84,15 @@ export function quickEdit({scene,page=null,config,seed,imageUrl,onRewrite,onGene
         if(panels){
             const kind=PAGE_FORMATS.find(([id])=>id===draft.pageFormat)?.[1]??'만화';
             pageBox.querySelector('h3').textContent=`${kind} · ${panels.length}칸`;panelLayout.input.value=draft.page.layout??'';panelLayout.wrap.hidden=!draft.page.layout;
+            // A planned page sits on a grid (pages) or on strips of chosen heights (webtoons).
+            const webtoon=draft.pageFormat==='webtoon',grids=draft.page.local&&!webtoon?PAGE_GRIDS[panels.length]:null;
+            gridField=grids?field('칸 나눔',gridFor(draft.page)[0],{choices:grids.map(([id,label])=>[id,label])}):null;gridSlot.replaceChildren(...(gridField?[gridField.wrap]:[]));
             panelFields=panels.map((panel,i)=>{
                 const box=el('section','ap2-quick-panel'),text=bare(field(`${i+1}번째 칸`,panel.text??'',{multiline:true,rows:2}));
                 box.append(el('h4','',`${i+1}번째 칸`),text.wrap);
+                const height=webtoon&&draft.page.local?field('칸 높이',panel.height??'medium',{choices:STRIP_HEIGHTS}):null;if(height)box.append(height.wrap);
                 const people=(panel.characters??[]).map((c,j)=>{const f=field(c.name||`인물 ${j+1}`,c.prompt??'',{multiline:true,rows:3});box.append(f.wrap);return f;});
-                panelList.append(box);return{text,people};
+                panelList.append(box);return{text,people,height};
             });
         }
         const seen=new Map();
@@ -101,7 +106,7 @@ export function quickEdit({scene,page=null,config,seed,imageUrl,onRewrite,onGene
     function read(){
         const final=!!draft.finalPrompt,characters=panelFields.length?draft.characters??[]:(draft.characters??[]).map((c,i)=>({...c,prompt:cast[i].read()}));
         if(final)return{scene:{...draft,prompt:prompt.read().trim(),negative:negative.read().trim(),camera:'',finalPrompt:true,characters},edits:{}};
-        const page=panelFields.length?{...draft.page,layout:panelLayout.read().trim(),panels:draft.page.panels.map((panel,i)=>({...panel,text:panelFields[i].text.read().trim()||panel.text,
+        const page=panelFields.length?{...draft.page,layout:panelLayout.read().trim(),...(gridField?{grid:gridField.read()}:{}),panels:draft.page.panels.map((panel,i)=>({...panel,text:panelFields[i].text.read().trim()||panel.text,...(panelFields[i].height?{height:panelFields[i].height.read()}:{}),
             characters:(panel.characters??[]).map((c,j)=>({...c,prompt:panelFields[i].people[j].read()}))}))}:draft.page;
         return{scene:{...draft,...(page?{page}:{}),camera:panelFields.length?'':camera.read().trim(),prompt:prompt.read().trim(),negative:sceneExclude.wrap.hidden?'':sceneExclude.read().trim(),finalPrompt:false,characters},
             edits:{...presetStyle(presets.find(p=>p.name===presetChoice.read())),style:style.read().trim(),negative:negative.read().trim(),look:look.read(),presetName:presetChoice.read()}};

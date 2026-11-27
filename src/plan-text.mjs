@@ -1,7 +1,7 @@
 // Line-based illustration plan: one "key: value" field per line, each scene
 // opened by a line reading "scene". It costs fewer reply tokens than JSON and
 // has no brackets or escapes for a model to get wrong.
-const SCENE_KEYS={camera:'camera',view:'camera',prompt:'prompt',negative:'negative',uc:'negative',quote:'evidence',evidence:'evidence',title:'ignored',layout:'layout',size:'size',ratio:'size',after:'after',paragraph:'after'};
+const SCENE_KEYS={camera:'camera',view:'camera',prompt:'prompt',negative:'negative',uc:'negative',quote:'evidence',evidence:'evidence',title:'ignored',layout:'layout',grid:'grid',size:'size',ratio:'size',after:'after',paragraph:'after'};
 const CHARACTER_KEYS={action:'action',outfit:'outfit',appearance:'appearance',profile:'profileId',profileid:'profileId'};
 const header=/^[\s#\[\-=*]*scene\s*\d*[\s\]:\-=*]*$/i,field=/^\s*(?:[-*]\s*)?([A-Za-z]+)\s*[:=]\s*(.*)$/;
 const clean=value=>{const v=value.trim();return v.length>1&&v.startsWith('"')&&v.endsWith('"')?v.slice(1,-1).trim():v;};
@@ -18,6 +18,8 @@ export function parsePlanText(input){
             if(!scene)open();
             panel={text:clean(match[2]),characters:[]};(scene.panels??=[]).push(panel);character=null;last=[panel,'text'];continue;
         }
+        // A webtoon panel's height belongs to the panel, wherever it is written inside it.
+        if(match&&panel&&key==='height'){panel.height=clean(match[2]).toLowerCase();last=null;continue;}
         if(match&&['char','character','name'].includes(key)){
             if(!scene)open();
             character={name:clean(match[2])};(panel?panel.characters:scene.characters).push(character);last=null;continue;
