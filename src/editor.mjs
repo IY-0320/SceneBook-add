@@ -70,7 +70,7 @@ export function composer({context,scenes,config,onAnalyze,onGenerate,onDraft,pre
         if(page){
             sceneBox.querySelector('h3').textContent='모든 칸에 공통';sceneBox.querySelector('header p').textContent='장소 · 시간 · 빛처럼 모든 칸에 같은 것입니다.';
             const pageBox=part(sceneSide,'만화 페이지',`${page.panels.length}칸 · V5에서만 그립니다.`);
-            const kind=field('형식',scene().pageFormat??'manga',{choices:[...PAGE_FORMATS.filter(([id])=>id!=='single').map(([id,label])=>[id,label]),['single','한 장면으로 바꾸기']]});
+            const kind=field('형식',scene().pageFormat??'manga',{choices:[...PAGE_FORMATS.filter(([id])=>!['single','cuts'].includes(id)).map(([id,label])=>[id,label]),['single','한 장면으로 바꾸기']]});
             kind.input.addEventListener('change',()=>{snapshot();if(kind.read()==='single'){delete scene().page;delete scene().pageFormat;}else scene().pageFormat=kind.read();renderContent();});
             const webtoon=(scene().pageFormat??'manga')==='webtoon',grids=page.local&&!webtoon?PAGE_GRIDS[page.panels.length]:null;
             pageBox.append(kind.wrap);

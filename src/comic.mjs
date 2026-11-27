@@ -4,15 +4,15 @@ import { MODELS } from '../plugin/core.mjs';
 // Only V5 reads the sentences that describe a page and its panels well enough,
 // so the mode is offered and applied on V5 alone.
 export const PAGE_FORMATS=[
-    ['single','한 장면','그림 한 장에 한 순간을 그립니다.'],
-    ['cuts','여러 컷','답변 하나를 여러 장의 그림으로 이어 그려 웹툰처럼 보여 줍니다. 그림 한 장이 한 컷이고, 모든 모델에서 됩니다.'],
+    ['single','삽화','보통 삽화입니다. 그릴 만한 순간마다 한 장씩, 최대 장 수 안에서 AI가 골라 그립니다. 액자와 그림 위치는 표시 탭 설정을 따릅니다.'],
+    ['cuts','웹툰 컷','답변을 웹툰 컷처럼 이어지는 여러 장으로 그립니다. 컷마다 거리 · 각도 · 화면 비율을 바꾸고 액자 없이 이어 보여 줍니다. 모든 모델에서 됩니다.'],
     ['manga','흑백 만화','먹선과 검은 그림자의 흑백 만화 페이지로 그립니다.'],
     ['comic','컬러 만화','칸이 나뉜 컬러 만화 페이지로 그립니다.'],
     ['webtoon','세로 웹툰','위에서 아래로 이어지는 세로 웹툰 칸으로 그립니다.'],
 ];
 export const PANEL_COUNTS=[[0,'자동'],[2,'2칸'],[3,'3칸'],[4,'4칸']];
-// For cuts the number is a ceiling: the AI draws only the moments worth showing, up to it.
-export const CUT_COUNTS=[[2,'2컷'],[3,'3컷'],[4,'4컷'],[5,'5컷'],[6,'6컷']];
+// Pictures per reply, for ordinary pictures and cuts alike: a ceiling, under which the AI draws only what is worth showing.
+export const SCENE_COUNTS=[1,2,3,4,5,6];
 // Where cuts go: each after the paragraph it shows, like a film cut into the story, or all below the reply as one strip.
 export const CUT_LAYOUTS=[['story','문단마다'],['stack','답변 아래 이어서']];
 const PAGE_KINDS=['manga','comic','webtoon'];
@@ -24,13 +24,12 @@ const pagePanels=config=>config.panelCount>=2?Math.min(4,config.panelCount):0;
 // Cuts: one reply drawn as several separate pictures, shown one under another
 // like a webtoon episode. Each picture is an ordinary scene, so any model draws it.
 export const cutMode=config=>config?.pageFormat==='cuts';
-export const cutLimit=config=>config.panelCount>=2?Math.min(6,config.panelCount):4;
-// While cuts are chosen the scene limit follows the cut count and placement follows the
-// cut layout; otherwise both return to the saved settings.
+export const cutLimit=config=>Math.max(1,Math.min(6,Number(config.maxScenes)||1));
+// While cuts are chosen placement follows the cut layout; otherwise it returns to the saved setting.
 export function withCuts(config){
-    const maxScenes=config.baseMaxScenes??config.maxScenes,placement=config.basePlacement??config.placement;
-    if(!cutMode(config))return config.baseMaxScenes===undefined?config:{...config,maxScenes,placement};
-    return{...config,baseMaxScenes:maxScenes,basePlacement:placement,maxScenes:cutLimit(config),placement:config.cutLayout==='stack'?'end':'auto'};
+    const placement=config.basePlacement??config.placement;
+    if(!cutMode(config))return config.basePlacement===undefined?config:{...config,placement};
+    return{...config,basePlacement:placement,placement:config.cutLayout==='stack'?'end':'auto'};
 }
 function cutRules(config,format){
     const max=cutLimit(config);
