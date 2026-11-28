@@ -1,6 +1,7 @@
 import { sceneLabel, sceneHint } from './scene-label.mjs';
 import { el, button, iconButton, actionMenu, modal, inspect, notice } from './ui.mjs';
 import { openViewer } from './addon/viewer.mjs'; // [add] 씬북+ 큰 그림 보기
+import { formatFilter } from './addon/gallery-format.mjs'; // [add] 씬북+ 그림 형식 칸
 
 // The server's job list is read once and reused; it is read again on request
 // or after a couple of minutes. New pictures of this chat come from the chat itself.
@@ -11,7 +12,8 @@ export async function galleryPage(page,{api,open,isCurrent,forced}) {
     search.type='search';search.placeholder='프롬프트 검색';search.setAttribute('aria-label','갤러리 검색');
     filter.setAttribute('aria-label','갤러리 범위');
     for(const [value,label]of [['done','전체 삽화'],['chat','이 채팅'],['failed','미완료']]){const option=el('option','',label);option.value=value;filter.append(option);}
-    bar.append(search,filter,actionMenu([{label:'새로고침',icon:'fa-rotate-right',run:refresh},{label:'채팅 내보내기',icon:'fa-file-export',run:()=>api.exportChat()},{label:'삭제',icon:'fa-trash-can',danger:true,run:()=>startDelete()}])); // [add] 삭제
+    const plusFormat=formatFilter(el); // [add] 그림 형식 칸
+    bar.append(search,filter,plusFormat.select,actionMenu([{label:'새로고침',icon:'fa-rotate-right',run:refresh},{label:'채팅 내보내기',icon:'fa-file-export',run:()=>api.exportChat()},{label:'삭제',icon:'fa-trash-can',danger:true,run:()=>startDelete()}])); // [add] 삭제
     const count=el('p','ap2-muted'),list=el('div','ap2-gallery'),pager=el('div','ap2-gallery-pager');count.setAttribute('role','status');
     page.append(bar,count,list,pager);count.textContent='그림을 불러오는 중…';
     // [add] 삭제: 팝업 없이 갤러리 안에서 방식 선택 → 그림 선택 → 확인 순서로 진행합니다.
@@ -77,10 +79,11 @@ export async function galleryPage(page,{api,open,isCurrent,forced}) {
             const ready=job.status==='done'&&api.isImage(job.url);
             if(filter.value==='failed'?ready:!ready)return false;
             if(filter.value==='chat'&&!chatIds.has(job.id))return false;
+            if(!plusFormat.matches(job))return false; // [add] 그림 형식
             return !query||[job.scene?.title,job.scene?.prompt,...(job.scene?.characters??[]).map(c=>c.name)].join(' ').toLocaleLowerCase().includes(query);
         });
         const pages=Math.max(1,Math.ceil(matches.length/size));pageIndex=Math.max(0,Math.min(pageIndex,pages-1));list.replaceChildren();
-        count.textContent=`${matches.length}개 · ${filter.value==='chat'?'현재 채팅':`최근 서버 기록${recent.length>=100?' 100개':''} + 현재 채팅`}${failure?' · 서버 기록을 불러오지 못했습니다':''}`;count.title=failure;
+        count.textContent=`${matches.length}개 · ${plusFormat.label()?`${plusFormat.label()} · `:''/* [add] */}${filter.value==='chat'?'현재 채팅':`최근 서버 기록${recent.length>=100?' 100개':''} + 현재 채팅`}${failure?' · 서버 기록을 불러오지 못했습니다':''}`;count.title=failure;
         if(!matches.length)list.append(el('p','ap2-empty',query?'검색 결과가 없습니다.':'표시할 그림이 없습니다.'));
         for(const job of matches.slice(pageIndex*size,(pageIndex+1)*size)){
             const label=sceneLabel(job.scene),title=sceneHint(job.scene)||'삽화',ready=job.status==='done'&&api.isImage(job.url);
@@ -104,5 +107,5 @@ export async function galleryPage(page,{api,open,isCurrent,forced}) {
         }
         previous.disabled=pageIndex===0;next.disabled=pageIndex>=pages-1;pageNumber.textContent=`${pageIndex+1} / ${pages}`;pager.hidden=pages<2;
     }
-    for(const control of [search,filter])control.addEventListener('input',()=>{pageIndex=0;render();});render();loaded=true; // [add] loaded
+    for(const control of [search,filter,plusFormat.select]/* [add] */)control.addEventListener('input',()=>{pageIndex=0;render();});render();loaded=true; // [add] loaded
 }
