@@ -4,8 +4,9 @@
 > 사용자는 개발자가 아니고 한국어로 대화합니다. 설명은 쉬운 말로, 전문 용어 없이.
 
 > **현재 상태 (2026-11-27): 씬북+ 업데이트 잠시 멈춤.** 원작자가 원본 0.5.4에서 씬북+ 기능을 거의 전부 넣어 줘서,
-> 사용자는 당분간 **원본 씬북을 쓰기로 함.** 지금 씬북+ 버전은 `0.6.2-add.1.1.0`.
-> **버전 규칙(사용자 지시):** 수정하는 중에는 add 숫자를 올리지 않음. 사용자가 "끝냈다"고 할 때만 올림. (add.3·add.4는 이 규칙 전에 올렸던 것이고, 사용자가 `add.1.1.0`으로 정함)
+> 사용자는 당분간 **원본 씬북을 쓰기로 함.** 지금 씬북+ 버전은 `0.6.2-add.1.2.0`.
+> **버전 규칙(사용자 지시):** 수정하는 중에는 add 숫자를 올리지 않음. 사용자가 "끝냈다"고 할 때만 올림. (add.3·add.4는 이 규칙 전에 올렸던 것이고, 사용자가 `add.1.1.0`으로 정함. 1.1.0 뒤에 더한 것(갤러리 그림 형식·출력 규칙·이미지 읽기 프롬 고치기·저장한 지시문·지시문 세트·탭 표시)은 사용자 지시로 `add.1.2.0`.)
+> 버전을 올릴 때마다 깡통 **업데이트 글꾸**(`notes/post/updates-src.html`)에도 새 버전을 적을 것 → 방법은 `notes/kkangtong-rules.md`의 '업데이트 글꾸'.
 > 2026-11-28 add.3: 오류 수정 요청 — ① 씬북 창에서 그림체(look)를 바꾸고 재생성하면 안 바뀌던 것(프리셋을 고르지 않으면 그림 원래 그림체로 그렸음) → `restyle()`이 지금 설정의 그림체를 따름. ② 연필(그림 고치기)에서 고른 그림체 프리셋·그림체가 1회성이던 것 → 다시 그리기 할 때 기본 설정으로 고정(`pinQuickStyle`). 확인: `notes/test-kit/st-style.cjs`.
 > 2026-11-28 프리셋 빠른 저장: 이미지 읽기 창에서 PNG를 불러오면 'PNG 선택' 옆에 버튼(`src/addon/import-preset.mjs`, 연결은 `src/import-ui.mjs`의 [add] 줄). 예/아니오 창 + 'PNG 파일 이름 그대로 사용' 체크(끄면 이름 입력칸). 저장 값은 원본 '설정에 적용'과 같은 설정. 확인: `notes/test-kit/st-import-preset.cjs <PNG> <스크린샷.png>` (Playwright는 이모지 파일 경로를 못 읽어 buffer로 넘김).
 > 2026-11-28 갤러리 그림 형식 칸: `src/addon/gallery-format.mjs`(형식 판단: `job.cut`=웹툰 컷, `job.pageScene.pageFormat`=만화·세로 웹툰, 나머지=삽화). 다른 채팅 그림도 나뉘도록 형식 기록 `extensionSettings.autopic2_job_formats`(id→형식, 삽화는 안 적음; 그릴 때 attach 뒤·CHAT_CHANGED·갤러리 열 때 기록) + 기록 없는 서버 그림은 프롬프트 문장으로 짐작(manga/comic page, 'vertical webtoon strip'은 웹툰 컷·세로 웹툰 둘 다). 연결은 `src/gallery-ui.mjs`·`index.js` [add] 줄. '전체 삽화'는 원본대로 서버 최근 기록 100개 + 현재 채팅임(서버 플러그인 한도). 범위 칸과 AND로 걸러짐. 확인: `notes/test-kit/st-gfmt.cjs <스크린샷.png>`.
@@ -22,7 +23,7 @@
 - **무엇:** SillyTavern(실리) 확장 **씬북(ST-SceneBook)** 에 기능을 더한 개조판 **씬북+**.
   - 원본: https://github.com/tincansimagine/ST-SceneBook (원작자 허락 받음, GitHub 개조판 제작까지 허락 받음)
   - 이 저장소: https://github.com/IY-0320/SceneBook-add · 작업 브랜치 `claude/scenebook-extension-features-jxvwlo`
-- **기반 버전:** 원본 0.6.2 (`upstream/main` = 8f26b7f). 씬북+ 버전 표기 `0.6.2-add.1.1.0`.
+- **기반 버전:** 원본 0.6.2 (`upstream/main` = 8f26b7f). 씬북+ 버전 표기 `0.6.2-add.1.2.0`.
 - **병합 원칙 (사용자 결정, 0.6.2 병합 때):** 원본 0.5.4가 씬북+ 기능 거의 전부를 원본 방식으로 넣었음. **겹치는 기능은 씬북+ 코드를 쓰고, 원본에서는 새 기능만 가져온다.**
   - 처음엔 원본 방식으로 바꾼 0.6.2-add.1을 올렸다가 사용자가 되돌리라고 해서 0.6.2-add.2로 다시 만듦. add.1을 설치했던 사람을 위해 `src/addon/migrate.mjs`가 원본 자리(`galleryHidden`, `analysisLength`)의 값을 씬북+ 자리로 되돌림.
   - 원본에서 가져온 새 기능: 만화 페이지·웹툰 컷(comic.mjs), 답변 후 보조 모델(planSource 'separate'), 다른 탭 생성(persistChat), 구도 순서·시점 교정(viewpoint.mjs), 프롬프트 순서(prompt-order.mjs), 지시문 정리, 최대 응답 길이 안내.
@@ -46,7 +47,7 @@
 | 파일 | 하는 일 |
 |---|---|
 | `host.mjs` | 원본 index.js의 함수(settings, saveSettings, scheduleRender, notice, KEY, safeImagePath)를 addon에서 쓰기 위한 연결점. `initialize()`에서 `connect()` |
-| `info.mjs` | 화면 이름 `씬북+`, 버전 `${CLIENT_VERSION}-add.1.1.0` |
+| `info.mjs` | 화면 이름 `씬북+`, 버전 `${CLIENT_VERSION}-add.1.2.0` |
 | `viewer.mjs` | 큰 그림 보기(원본 openViewer와 같은 모양으로 부름). 예전엔 ui.mjs의 viewer를 고쳐 썼으나 원본이 viewer를 src/viewer.mjs로 옮겨서 addon으로 가져옴 |
 | `migrate.mjs` | 0.6.2-add.1이 원본 자리로 옮긴 갤러리 숨김·분석 답 길이를 씬북+ 자리로 되돌림 |
 | `auto-placement.mjs` | 문단 뒤(자동): `autoPosition`(인용문→문단번호→2-gram 유사도), AI 지시 규칙, 번역 화면용 `anchorByOrder`(문단 수가 같을 때만) |

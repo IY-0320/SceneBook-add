@@ -58,3 +58,18 @@
 - 장식은 `top/left/right/bottom` 0 이상, 안쪽으로만 움직이게(음수 위치 X), 크기는 `min(220px,55%)`처럼.
 - 모서리 자르기는 `overflow` 대신 `clip-path:inset(0 round 20px)`.
 - 격자는 `grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr))`, 글자 크기는 `clamp()`.
+
+
+## 업데이트 글꾸 (사용자가 기억해 두라고 함)
+
+- 파일: 원본 `notes/post/updates-src.html` → 완성본 `notes/post/kkangtong-updates.html`.
+- **본문 글꾸(`kkangtong-post.html`)와 합치지 않고 따로** 전달함. 사용자가 본문 아래에 따로 덧붙임.
+- 본문과 같은 디자인(흑백·회색, 어두운 판 + 유리, 접기/펼치기)이지만 class 앞머리는 **`.sbpu`**(본문은 `.sbp`)라서 서로 겹치지 않음.
+- 구성: 머리(UPDATES · 업데이트 기록) → **최신 버전 상자**(`.sbpu-latest`, LATEST 표시, 버전·날짜·목록) → **지난 버전**(`details`, 새 버전일수록 위) → 맺음말.
+- 새 버전을 올릴 때:
+  1. 지금 최신 상자의 내용을 `<details>` 하나로 바꿔 지난 버전 맨 위에 넣음(`sbpu-tag`=버전, `sbpu-sum`=한 줄 요약, `sbpu-when`=날짜).
+  2. 최신 상자에 새 버전 번호·날짜·목록을 씀. 목록은 `<li><b>기능 이름</b> · 설명</li>`.
+  3. `node notes/post/updates-inline.cjs notes/post`로 글자마다 인라인 색을 넣어 `kkangtong-updates.html`을 만듦.
+  4. 가로 넘침(320·360·414·800px)을 확인하고, 완성본 전체를 코드 블록으로 사용자에게 줌.
+- 문장 규칙은 본문과 같음: "~합니다/~입니다", 쉬운 말, **원본과 비교하는 말 금지**(더, ~보다, 달라졌다, 차이, 원본에 없는 등). 씬북 기반 버전은 "씬북 0.6.2를 바탕으로"처럼 사실만 씀.
+- 등장 효과는 머리에만 넣음(글 끝에 붙는 블록이라 아래쪽이 반쯤 투명하게 멈출 수 있어서).
