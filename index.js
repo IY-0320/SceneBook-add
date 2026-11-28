@@ -33,7 +33,7 @@ import { migrateAddonSettings } from './src/addon/migrate.mjs';
 import { connect as connectAddon } from './src/addon/host.mjs';
 import { revealTools as plusRevealTools, initChatHelpers, showVersionNow } from './src/addon/chat-helpers.mjs';
 import { plusDisplayParagraph } from './src/addon/auto-placement.mjs';
-import { activeStyleIndex, restyle, applyStylePreset, writeActiveStyle, STYLE_NONE, styleName } from './src/addon/style-presets.mjs';
+import { activeStyleIndex, restyle, applyStylePreset, writeActiveStyle, STYLE_NONE, styleName, pinQuickStyle } from './src/addon/style-presets.mjs';
 import { deleteIllustrationImages, deletedJobIds } from './src/addon/gallery-delete.mjs';
 import { parseAnalysisResponse, analysisLength as plusAnalysisLength } from './src/addon/analysis-response.mjs';
 export { reloadAfterUpdate as onSceneBookUpdate } from './src/addon/update-reload.mjs';
@@ -495,9 +495,9 @@ function openQuickEdit(index,slot) {
     const styled=restyle(job.config); /* [add] 씬북+: 적용 중인(직접 고른) 프리셋 그림체로 고칩니다 */
     quickEdit({scene:job.plainScene??job.scene,page:job.pageScene,config:editableConfig(styled),plusPresets:settings().presets??[],seed:job.seed,imageUrl:job.url, /* [add] */
         onRewrite:async(scene,request)=>{check();return(await analyze(target,[{...scene,after:Math.min(scene.after,target.snapshot.blocks.length)}],request,'all',false))[0];},
-        onGenerate:(scene,{size,keepSeed,saveDefault,...edits})=>{
+        onGenerate:(scene,{size,keepSeed,saveDefault,pin,...edits})=>{
             check();
-            if(saveDefault)saveSettings({...settings(),style:edits.style,negative:edits.negative,look:edits.look});/* [add] 도움말대로 메인 프롬프트·제외 요소·그림체만 기본값에 저장 */
+            if(saveDefault)saveSettings({...settings(),style:edits.style,negative:edits.negative,look:edits.look});/* [add] 도움말대로 메인 프롬프트·제외 요소·그림체만 기본값에 저장 */if(pin)pinQuickStyle(pin);/* [add] 연필에서 고른 그림체·프리셋을 기본 설정으로 고정 */
             return enqueue(target,[scene],slot.id,{...styled,...edits,seed:keepSeed?job.seed:-1,...(size?sizeFor(job.config,size):{})}); /* [add] styled */
         },
         onDetail:(scene,edits)=>{check();return compose(index,true,[scene],slot.id,{...styled,...edits,seed:job.seed});}, /* [add] styled */

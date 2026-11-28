@@ -4,7 +4,8 @@
 > 사용자는 개발자가 아니고 한국어로 대화합니다. 설명은 쉬운 말로, 전문 용어 없이.
 
 > **현재 상태 (2026-11-27): 씬북+ 업데이트 잠시 멈춤.** 원작자가 원본 0.5.4에서 씬북+ 기능을 거의 전부 넣어 줘서,
-> 사용자는 당분간 **원본 씬북을 쓰기로 함.** 마지막 씬북+ 버전은 `0.6.2-add.2`(커밋 75d95a4).
+> 사용자는 당분간 **원본 씬북을 쓰기로 함.** 마지막 씬북+ 버전은 `0.6.2-add.3`.
+> 2026-11-28 add.3: 오류 수정 요청 — ① 씬북 창에서 그림체(look)를 바꾸고 재생성하면 안 바뀌던 것(프리셋을 고르지 않으면 그림 원래 그림체로 그렸음) → `restyle()`이 지금 설정의 그림체를 따름. ② 연필(그림 고치기)에서 고른 그림체 프리셋·그림체가 1회성이던 것 → 다시 그리기 할 때 기본 설정으로 고정(`pinQuickStyle`). 확인: `notes/test-kit/st-style.cjs`.
 > 다시 시작하면: 원본 최신을 병합(1번의 병합 원칙대로) → 테스트 → 버전 올리기.
 > 원본으로 옮길 때 안내한 것: 둘 동시에 켜지 않기 / 설정·프리셋·삽화는 이어짐 /
 > 씬북+만 따로 저장하던 '갤러리에서 숨긴 그림'·'분석 답 길이'는 원본에서 다시 정해야 함.
@@ -14,7 +15,7 @@
 - **무엇:** SillyTavern(실리) 확장 **씬북(ST-SceneBook)** 에 기능을 더한 개조판 **씬북+**.
   - 원본: https://github.com/tincansimagine/ST-SceneBook (원작자 허락 받음, GitHub 개조판 제작까지 허락 받음)
   - 이 저장소: https://github.com/IY-0320/SceneBook-add · 작업 브랜치 `claude/scenebook-extension-features-jxvwlo`
-- **기반 버전:** 원본 0.6.2 (`upstream/main` = 8f26b7f). 씬북+ 버전 표기 `0.6.2-add.2`.
+- **기반 버전:** 원본 0.6.2 (`upstream/main` = 8f26b7f). 씬북+ 버전 표기 `0.6.2-add.3`.
 - **병합 원칙 (사용자 결정, 0.6.2 병합 때):** 원본 0.5.4가 씬북+ 기능 거의 전부를 원본 방식으로 넣었음. **겹치는 기능은 씬북+ 코드를 쓰고, 원본에서는 새 기능만 가져온다.**
   - 처음엔 원본 방식으로 바꾼 0.6.2-add.1을 올렸다가 사용자가 되돌리라고 해서 0.6.2-add.2로 다시 만듦. add.1을 설치했던 사람을 위해 `src/addon/migrate.mjs`가 원본 자리(`galleryHidden`, `analysisLength`)의 값을 씬북+ 자리로 되돌림.
   - 원본에서 가져온 새 기능: 만화 페이지·웹툰 컷(comic.mjs), 답변 후 보조 모델(planSource 'separate'), 다른 탭 생성(persistChat), 구도 순서·시점 교정(viewpoint.mjs), 프롬프트 순서(prompt-order.mjs), 지시문 정리, 최대 응답 길이 안내.
@@ -38,7 +39,7 @@
 | 파일 | 하는 일 |
 |---|---|
 | `host.mjs` | 원본 index.js의 함수(settings, saveSettings, scheduleRender, notice, KEY, safeImagePath)를 addon에서 쓰기 위한 연결점. `initialize()`에서 `connect()` |
-| `info.mjs` | 화면 이름 `씬북+`, 버전 `${CLIENT_VERSION}-add.2` |
+| `info.mjs` | 화면 이름 `씬북+`, 버전 `${CLIENT_VERSION}-add.3` |
 | `viewer.mjs` | 큰 그림 보기(원본 openViewer와 같은 모양으로 부름). 예전엔 ui.mjs의 viewer를 고쳐 썼으나 원본이 viewer를 src/viewer.mjs로 옮겨서 addon으로 가져옴 |
 | `migrate.mjs` | 0.6.2-add.1이 원본 자리로 옮긴 갤러리 숨김·분석 답 길이를 씬북+ 자리로 되돌림 |
 | `auto-placement.mjs` | 문단 뒤(자동): `autoPosition`(인용문→문단번호→2-gram 유사도), AI 지시 규칙, 번역 화면용 `anchorByOrder`(문단 수가 같을 때만) |
@@ -115,7 +116,8 @@ mkdir -p data/default-user/user/images/autopic2        # 테스트용 PNG를 <uu
   - `st-sel.cjs` 갤러리 선택 표시·아이콘 색, `st-qe.cjs` 그림 고치기 프리셋, `st-ed.cjs` 최종 확인 표시
   - `st-fix.cjs` 완전 삭제(스와이프 정리)·확대 중 키·업데이트 훅, `st-hook.cjs` 실제 업데이트 후 자동 새로고침
   - `st-merge.cjs` 병합 뒤 한 번에 확인(설정 되돌려 옮기기·이름·그림 고치기 프리셋 위치·재생성 설정·큰 그림 제목), `st-tabs.cjs` 씬북 창 모든 탭이 오류 없이 열리는지
-  - 0.6.2-add.2에서 st-gen·ver·wrap·zoom·sel·ed·len2·fix·merge·tabs 모두 통과함.
+  - `st-style.cjs` 씬북 창 프리셋·그림체 → 재생성 반영, 연필에서 고른 프리셋·그림체가 기본 설정에 고정되는지
+  - 0.6.2-add.2에서 st-gen·ver·wrap·zoom·sel·ed·len2·fix·merge·tabs 모두 통과함. add.3에서 style·merge·tabs 통과.
 - 인자로 스크린샷 경로를 받는 스크립트는 `.png`로 끝나는 경로를 넘길 것.
 - 깡통(kkangtong.xyz)은 이 작업 환경에서 접속이 안 됨.
 

@@ -32,15 +32,30 @@ function chosenStyleIndex(){
     return(now.presets??[]).findIndex(p=>p.name===name&&matchesStyle(p,now));
 }
 // 이미 만든 그림을 다시 만들 때, 직접 고른 그림체가 있으면 그 그림의 설정 위에 덮어씁니다.
+// 고른 프리셋이 없어도 씬북 창의 '그림체'(look)는 지금 설정을 따릅니다. 같으면 그 그림 설정을 그대로 돌려줍니다.
 export function restyle(config){
-    if(!config||chosenStyleIndex()<0)return config;
+    if(!config)return config;
     const now=host.settings();
+    if(chosenStyleIndex()<0){
+        const look=now.look??'',own=typeof config.look==='string'?config.look:splitLook(config).look;
+        return own===look?config:{...config,look};
+    }
     return{...config,...Object.fromEntries(STYLE_KEYS.filter(k=>now[k]!==undefined).map(k=>[k,structuredClone(now[k])]))};
 }
 export function applyStylePreset(index){
     const now=host.settings(),preset=now.presets?.[index];if(!preset)throw new Error('프리셋을 찾을 수 없습니다.');
     host.saveSettings({...now,...preset.config});writeActiveStyle(preset.name);
     host.notice(`그림체 적용 · ${preset.name}`);
+}
+
+// 그림 고치기(연필)에서 고른 그림체를 씬북 창에서 바꿀 때처럼 기본 설정으로 고정합니다.
+// preset: 새로 고른 프리셋 번호(-1이면 없음), look/startLook: '그림체' 칸의 지금 값과 처음 값
+export function pinQuickStyle({preset,look,startLook}){
+    if(preset>=0)applyStylePreset(preset);
+    if(look!==startLook||preset>=0&&(host.settings().look??'')!==look){
+        host.saveSettings({...host.settings(),look});
+        if(preset<0)host.notice(`그림체를 기본 설정에 저장했습니다.`);
+    }
 }
 
 // 장면 편집 창의 '프롬프트' 탭: 이 작업에 쓰인 프리셋(그림체)을 보여 주기만 합니다. 바꾸는 곳은 그림 고치기 창입니다.
@@ -81,7 +96,9 @@ export function quickPresetPicker({presets,config,fields,characters,isFinal,fiel
             notice(isFinal()?`그림체 프리셋 · ${preset.name} · 최종 프롬프트를 직접 고친 그림이라 모델 등 설정만 바뀝니다.`:`그림체 프리셋 · ${preset.name}`);
         }catch(e){pick.input.value=chosen;notice(e.message,true);}
     });
-    return{wrap:box,extra:()=>structuredClone(extra)};
+    // 처음 보인 프리셋에서 다른 프리셋으로 바꿨을 때만 그 번호 (다시 그릴 때 기본 설정으로 고정)
+    const start=pick.read();
+    return{wrap:box,extra:()=>structuredClone(extra),pinned:()=>chosen!==''&&chosen!==start?Number(chosen):-1};
 }
 
 // 만든 그림의 설정이 어느 프리셋과 같은지: 큰 그림 보기 제목에 '삽화 · 프리셋 이름'으로 보입니다.

@@ -63,7 +63,7 @@ export function quickEdit({scene,page=null,config,seed,imageUrl,onRewrite,onGene
     let gridField=null;const gridSlot=el('div','');pageBox.append(gridSlot,panelLayout.wrap,panelList);
     const styleBox=block('메인 프롬프트','이 그림에 쓴 화풍·공통 태그입니다. 여기서 고치면 이 그림에만 적용됩니다.');
     const look=field('그림체',LOOKS.some(([id])=>id===config.look)?config.look:'',{choices:LOOKS.map(([id,label])=>[id,label])});
-    const style=bare(field('메인 프롬프트',config.style??'',{multiline:true,rows:3})),keep=field('앞으로 그릴 그림에도 적용',false,{type:'checkbox',help:'메인 프롬프트·제외할 요소·그림체를 기본 설정에도 저장합니다.'});
+    const style=bare(field('메인 프롬프트',config.style??'',{multiline:true,rows:3})),keep=field('앞으로 그릴 그림에도 적용',false,{type:'checkbox',help:'메인 프롬프트·제외할 요소도 기본 설정에 저장합니다. 그림체와 그림체 프리셋은 고르면 앞으로 그릴 그림에도 적용됩니다.'/* [add] 씬북+ */});
     // Another saved preset for this picture only: its art settings fill the fields below.
     const presets=config.presets??[],presetChoice=field('그림체 프리셋',config.presetName??'',{choices:[['','이 그림 그대로'],...presets.map(p=>[p.name,p.name])]});
     presetChoice.input.addEventListener('change',()=>{const p=presets.find(x=>x.name===presetChoice.read());if(!p)return;style.input.value=p.config.style??'';negative.input.value=p.config.negative??'';look.input.value=LOOKS.some(([id])=>id===p.config.look)?p.config.look:'';for(const input of [style.input,negative.input])input.dispatchEvent(new Event('input'));});
@@ -71,7 +71,7 @@ export function quickEdit({scene,page=null,config,seed,imageUrl,onRewrite,onGene
     styleBox.append(style.wrap,look.wrap); /* [add] 원본 그림체 프리셋 칸 대신 씬북+ 칸을 씁니다 */
     const excludeBox=block('제외할 요소 (UC)'),negative=bare(field('제외할 요소',config.negative??'',{multiline:true,rows:2}));excludeBox.append(negative.wrap,keep.wrap);
     // [add] 씬북+ 그림체 프리셋: 고르면 메인 프롬프트·제외할 요소·그림체 칸을 채우고, 모델 등은 이번 그림에만 씁니다.
-    const presetPick=quickPresetPicker({presets:plusPresets,config,fields:{style,negative,look},characters:()=>(draft.characters??[]).length,isFinal:()=>!!draft.finalPrompt,field,notice:addonNotice,MODELS});presetSlot.replaceWith(presetPick.wrap);
+    const presetPick=quickPresetPicker({presets:plusPresets,config,fields:{style,negative,look},characters:()=>(draft.characters??[]).length,isFinal:()=>!!draft.finalPrompt,field,notice:addonNotice,MODELS});presetSlot.replaceWith(presetPick.wrap);const startLook=look.read(); /* [add] 처음 보인 그림체 */
     const cameraBox=block('구도 · 화면 비율 · 시드'),camera=bare(field('구도','',{placeholder:'예: from side, upper body'})),chips=cameraChips(camera);
     const shape=segmented('화면 비율',[['','그대로'],...ORIENTATIONS.slice(1)],size,value=>{size=value;}),shapeRow=el('div','ap2-quick-shape');shapeRow.append(el('span','','화면 비율'),shape.wrap);
     // The same seed keeps the composition as close as it can, to judge a prompt change alone.
@@ -132,6 +132,6 @@ export function quickEdit({scene,page=null,config,seed,imageUrl,onRewrite,onGene
     fill();
     const footer=el('footer','ap2-footer ap2-editor-footer'),left=el('div','ap2-actions'),right=el('div','ap2-actions');
     left.append(button('인물 배치 · 설정',()=>{const value=read();dialog.close();return onDetail(value.scene,value.edits);},false,'fa-sliders'));
-    right.append(button('다시 그리기',async()=>{const value=read();await onGenerate(value.scene,{...value.edits,size,keepSeed:seedChoice.read()==='same',saveDefault:!keep.wrap.hidden&&keep.read()});dialog.close();},true,'fa-rotate-right'));
+    right.append(button('다시 그리기',async()=>{const value=read();await onGenerate(value.scene,{...value.edits,size,keepSeed:seedChoice.read()==='same',saveDefault:!keep.wrap.hidden&&keep.read(),pin:{preset:presetPick.pinned(),look:styleBox.hidden?startLook:look.read(),startLook}});/* [add] 씬북+ 고른 그림체 고정 */dialog.close();},true,'fa-rotate-right'));
     footer.append(left,right);dialog.append(footer);return dialog;
 }
