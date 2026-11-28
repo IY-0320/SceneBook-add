@@ -12,6 +12,11 @@ const {chromium}=require('playwright');
  console.log('파일칸',await d.locator('input[type=file]').count());await d.locator('input[type=file]').setInputFiles({name:require('path').basename(process.argv[2]),mimeType:'image/png',buffer:require('fs').readFileSync(process.argv[2])});await p.waitForTimeout(300);console.log('상태',await d.locator('p[role]').allTextContents(),errs);await p.waitForTimeout(800);
  console.log('읽은 뒤 버튼 보임',await d.getByRole('button',{name:'프리셋 빠른 저장'}).isVisible());
  await p.screenshot({path:process.argv[3]});
+ // 메인·UC 프롬프트 고치기
+ const pr=d.locator('details',{has:p.locator('summary',{hasText:'메인 프롬프트'})}).locator('textarea'),uc=d.locator('details',{has:p.locator('summary',{hasText:'UC 프롬프트'})}).locator('textarea');
+ console.log('불러온 프롬',await pr.inputValue(),'/ UC',await uc.inputValue());
+ await pr.fill('orange cat girl, chibi, edited tag');await uc.fill('lowres, edited uc');
+ await p.screenshot({path:process.argv[3].replace('.png','-edit.png'),fullPage:false});
  await d.getByRole('button',{name:'프리셋 빠른 저장'}).click();await p.waitForTimeout(400);
  const q=p.locator('dialog',{has:p.locator('h2',{hasText:'프리셋 빠른 저장'})}).last();
  await q.screenshot({path:process.argv[3].replace('.png','-ask.png')});
@@ -27,4 +32,6 @@ const {chromium}=require('playwright');
  await d.getByRole('button',{name:'프리셋 빠른 저장'}).click();await p.waitForTimeout(400);await q.getByRole('button',{name:'아니오'}).click();await p.waitForTimeout(300);
  console.log('저장 2',JSON.stringify((await presets()).map(x=>x.name)));
  console.log('지금 설정 그대로인지 style',await p.evaluate(()=>SillyTavern.getContext().extensionSettings.autopic2.style));
+ await d.getByRole('button',{name:'설정에 적용'}).click();await p.waitForTimeout(600);
+ console.log('설정에 적용 뒤',JSON.stringify(await p.evaluate(()=>{const s=SillyTavern.getContext().extensionSettings.autopic2;return{style:s.style,negative:s.negative};})));
  console.log(errs);await b.close();})();

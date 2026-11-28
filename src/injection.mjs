@@ -1,4 +1,5 @@
 import { parsePlanJson, JSON_OUTPUT_RULES } from './plan-json.mjs';
+import { customRules } from './addon/output-rules-store.mjs'; // [add] 씬북+ 직접 고친 출력 규칙
 import { parsePlanText } from './plan-text.mjs';
 import { placementRule, sceneCount } from './placement-rules.mjs';
 import { pageRules, pageFormat, readPage, cutMode } from './comic.mjs';
@@ -103,7 +104,7 @@ export function renderInjection(config) {
     const prompt=(validateInjectionTemplate(config.injectionPrompt ?? '') || (config.leanPrompt?LEAN_INJECTION_PROMPT:DEFAULT_INJECTION_PROMPT)).replace(/\{\{(\w+)\}\}/g, (_, key) => values[key]);
     // The short mode sends the template alone, without the long appended checklists.
     if(config.leanPrompt)return `<image_generation>\n${prompt}\n${[VISIBLE_DETAIL,pageRules(config,usesJsonPlan(config.injectionPrompt)?'json':'text'),placementRule(config,'lean'),config.placement==='auto'?sceneCount(config):''].filter(Boolean).map(x=>`${x} `).join('')}End the final answer with the completed <!--scenebook ... --> comment.\n</image_generation>`;
-    return `<image_generation>\n${contract(usesJsonPlan(config.injectionPrompt))}\n\n${prompt}\n\n${illustrationOutputRules(config)}\n</image_generation>`;
+    return `<image_generation>\n${contract(usesJsonPlan(config.injectionPrompt))}\n\n${prompt}\n\n${customRules('injection')||illustrationOutputRules(config)/* [add] */}\n</image_generation>`;
 }
 
 // Read our marker independently of how the model wraps JSON or breaks lines.
