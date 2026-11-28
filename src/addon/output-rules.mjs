@@ -27,5 +27,8 @@ export function rulesEditor({kind,defaultText,field,button,el}){
         wrap,
         // 적용할 때 호출: 기본과 같으면 '자동'으로 저장
         save(){const value=box.read();saveCustomRules(kind,value.trim()===defaultText.trim()?'':value);},
+        // 저장한 지시문에서 씁니다: 기본과 같으면 '' (자동), set('')은 기본 규칙으로
+        read(){const value=box.read();return value.trim()===defaultText.trim()?'':value;},
+        set(value){box.input.value=value||defaultText;box.input.dispatchEvent(new Event('input'));},
     };
 }

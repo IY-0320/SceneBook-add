@@ -15,6 +15,7 @@ import { INKS } from './ornaments.mjs';
 import { charactersPage } from './characters-ui.mjs';
 import { referencesPage } from './reference-ui.mjs';
 import { galleryPage } from './gallery-ui.mjs';
+import { promptSetSection } from './addon/prompt-presets.mjs'; // [add] 씬북+ 지시문 세트
 import { el, button, iconButton, actionMenu, modal, field, addField, readFields, segmented, choiceChips, section, foldout, saveBar, confirmAction, downloadJson, notice, syncTone, fitText, setText, setFlag } from './ui.mjs';
 
 const PAGES=[
@@ -153,6 +154,8 @@ function homePage(page,{api,open,close,listen}){
     listen(['scenebook-workflow-status','scenebook-settings-changed','scenebook-visual-changed'],refresh);listen(['scenebook-context-changed'],()=>{if(page.hidden)stale=true;else void check();});
     flow.refresh();describe();show(limits,workflowEnabled(c));void check();
 }
+// [add] 'AI 지시문 · 프롬프트 공유'를 펼쳐 두었는지 (지시문 세트를 바꿔 다시 그려도 유지)
+let promptSetsOpen=false;
 function promptPage(page,{api,open}){
     const c=api.settings(),fields={};
     page.append(el('p','ap2-lead','모든 그림에 공통으로 붙는 프롬프트입니다. 장면과 인물은 답변마다 AI가 따로 쓰므로 여기에는 항상 유지할 화풍·품질만 적으면 됩니다.'));
@@ -173,10 +176,11 @@ function promptPage(page,{api,open}){
     const order=section(page,'전송 순서'),strip=el('ol','ap2-order');
     for(const [i,part]of ['그림체','메인 프롬프트','구도','장면','품질 태그'].entries()){if(i){const arrow=el('li','ap2-order-arrow','→');arrow.setAttribute('aria-hidden','true');strip.append(arrow);}strip.append(el('li','',part));}
     order.append(strip,el('p','ap2-muted','구도와 장면은 AI가 답변마다 쓰며, 그림 위의 연필 버튼으로 그림마다 고칠 수 있습니다. 인물 프롬프트는 인물별로 따로 전송됩니다.'));
-    const advanced=foldout(page,'AI 지시문 · 프롬프트 공유');
+    const advanced=foldout(page,'AI 지시문 · 프롬프트 공유',promptSetsOpen); /* [add] 펼친 상태 유지 */advanced.parentElement.addEventListener('toggle',event=>{promptSetsOpen=event.target.open;});
     addField(advanced,fields,'leanPrompt','간결한 삽화 지시문',c.leanPrompt,{type:'checkbox',help:'대화 AI에 매번 보내는 삽화 지시문을 짧은 버전으로 바꿔 입력 토큰을 줄입니다. 삽화 지시가 자주 빠지면 끄세요.'});
     advanced.append(el('p','ap2-muted','대화 AI에게 삽화 지시를 쓰게 하는 지시문과 수동 분석 지시문을 고치거나, 프롬프트를 파일로 주고받습니다.'),
         button('지시문 편집 · 공유',()=>promptEditor({...api.settings(),...readFields(fields)},value=>{api.saveSettings({...api.settings(),...value});return open('prompt',true);},{initial:'injection'}),false,'fa-pen'));
+    promptSetSection(advanced,{api,open}); /* [add] 씬북+ 지시문 세트 */
     saveBar(page,()=>api.saveSettings({...api.settings(),...readFields(fields)}));
 }
 // [add] '프리셋 · 백업'을 펼쳐 두었는지 (탭을 다시 그려도 유지)

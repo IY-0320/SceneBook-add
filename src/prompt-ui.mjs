@@ -3,6 +3,7 @@ import { DEFAULT_INJECTION_PROMPT as FULL_INJECTION_PROMPT, LEAN_INJECTION_PROMP
 import { JSON_OUTPUT_RULES } from './plan-json.mjs';
 import { el, button, field, modal, notice, downloadJson } from './ui.mjs';
 import { rulesEditor, analysisOutputRules } from './addon/output-rules.mjs'; // [add] 씬북+ 출력 규칙 고치기
+import { savedPromptPicker } from './addon/prompt-presets.mjs'; // [add] 씬북+ 저장한 지시문
 
 export function promptEditor(config,onApply,{initial='image'}={}){
     const {dialog,body}=modal('프롬프트'),DEFAULT_INJECTION_PROMPT=config.leanPrompt?LEAN_INJECTION_PROMPT:FULL_INJECTION_PROMPT;
@@ -17,8 +18,9 @@ export function promptEditor(config,onApply,{initial='image'}={}){
         /* [add] 씬북+: 출력 규칙을 고칠 수 있게 합니다. 간결한 삽화 지시문은 규칙을 덧붙이지 않아 안내만 보여 줍니다. */
         const rules=el('details','ap2-guide-topic');rules.append(el('summary','','출력 규칙'),el('p','ap2-muted',section===injection?'주입이 켜진 답변에 지시문 뒤로 덧붙여 전달하는 규칙입니다. 직접 고칠 수 있고, 적용하면 저장됩니다.':'수동 분석 때 지시문 뒤에 덧붙여 전달하는 규칙입니다. 직접 고칠 수 있고, 적용하면 저장됩니다.'));
         if(section===injection&&config.leanPrompt)rules.append(el('pre','ap2-code','간결한 삽화 지시문을 켠 상태에서는 추가 출력 규칙을 덧붙이지 않습니다.'));
-        else{const editor=rulesEditor({kind:section===injection?'injection':'analysis',defaultText:section===injection?illustrationOutputRules(config):analysisOutputRules(config),field,button,el});rules.append(editor.wrap);plusRules.push(editor);}
+        let editor=null;if(!(section===injection&&config.leanPrompt)){editor=rulesEditor({kind:section===injection?'injection':'analysis',defaultText:section===injection?illustrationOutputRules(config):analysisOutputRules(config),field,button,el});rules.append(editor.wrap);plusRules.push(editor);}
         section.append(rules);
+        /* [add] 씬북+ 저장한 지시문: 탭 맨 위 */{const input=section===injection?injected:template,base=section===injection?DEFAULT_INJECTION_PROMPT:DEFAULT_ANALYSIS_PROMPT;section.prepend(savedPromptPicker({kind:section===injection?'injection':'analysis',prompt:{read:()=>input.read()===base?'':input.read(),set:value=>{input.input.value=value||base;input.input.dispatchEvent(new Event('input'));}},rules:editor}));}
     }
     let active=initial==='injection'?2:0;const sections=[image,analysis,injection];sections.forEach((s,n)=>s.hidden=n!==active);
     for(const [i,label]of ['공통 프롬프트','수동 분석 지시문','삽화 지시문'].entries()){const b=button(label,()=>{active=i;sections.forEach((s,n)=>s.hidden=n!==i);[...tabs.children].forEach((t,n)=>t.setAttribute('aria-pressed',String(n===i)));});b.classList.remove('menu_button','menu_button_icon');b.setAttribute('aria-pressed',String(i===active));tabs.append(b);}body.append(tabs,...sections);

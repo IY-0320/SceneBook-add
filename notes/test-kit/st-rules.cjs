@@ -8,16 +8,16 @@ const {chromium}=require('playwright');
  const openEditor=async()=>{await p.evaluate(async()=>{await SillyTavern.getContext().executeSlashCommandsWithOptions('/scenebook');});await p.waitForTimeout(800);
    const st=p.locator('dialog.ap2-studio');await st.locator('.ap2-nav .ap2-nav-item',{hasText:'프롬프트'}).first().click();await p.waitForTimeout(400);
    await st.locator('details').evaluateAll(ns=>ns.forEach(n=>n.open=true));await p.waitForTimeout(200);await st.getByRole('button',{name:'지시문 편집 · 공유'}).click();await p.waitForTimeout(600);return p.locator('dialog',{has:p.locator('h2',{hasText:/^프롬프트$/})}).last();};
- const rulesBox=(d)=>d.locator('div:not([hidden]) > details.ap2-guide-topic textarea').first();
+ const rulesBox=(d)=>d.locator('div:not([hidden]) > details.ap2-guide-topic:has(> summary:text-is("출력 규칙")) textarea').first();
  let d=await openEditor();
  // 삽화 지시문 탭(처음 열린 탭이 삽화 지시문)
  await d.getByRole('button',{name:'삽화 지시문'}).click();await p.waitForTimeout(200);
- await d.locator('div:not([hidden]) > details.ap2-guide-topic').evaluate(n=>n.open=true);
+ await d.locator('div:not([hidden]) > details.ap2-guide-topic:has(> summary:text-is("출력 규칙"))').evaluate(n=>n.open=true);
  const box=rulesBox(d);console.log('삽화 규칙 칸 고칠 수 있음',await box.isEditable());
  await box.fill('MY INJECTION RULE');await p.waitForTimeout(100);
- console.log('상태',await d.locator('div:not([hidden]) > details.ap2-guide-topic p[role=status]').textContent());
+ console.log('상태',await d.locator('div:not([hidden]) > details.ap2-guide-topic:has(> summary:text-is("출력 규칙")) p[role=status]').textContent());
  await d.getByRole('button',{name:'수동 분석 지시문'}).click();await p.waitForTimeout(200);
- await d.locator('div:not([hidden]) > details.ap2-guide-topic').evaluate(n=>n.open=true);
+ await d.locator('div:not([hidden]) > details.ap2-guide-topic:has(> summary:text-is("출력 규칙"))').evaluate(n=>n.open=true);
  const abox=rulesBox(d);console.log('분석 기본 규칙 앞부분',JSON.stringify((await abox.inputValue()).slice(0,40)));
  await abox.fill((await abox.inputValue())+'\nMY ANALYSIS RULE');
  await d.screenshot({path:process.argv[2]});
@@ -29,7 +29,7 @@ const {chromium}=require('playwright');
  await p.keyboard.press('Escape');await p.waitForTimeout(300);
  // 기본 규칙으로 되돌리기
  d=await openEditor();
- for(const tab of ['삽화 지시문','수동 분석 지시문']){await d.getByRole('button',{name:tab}).click();await p.waitForTimeout(200);await d.locator('div:not([hidden]) > details.ap2-guide-topic').evaluate(n=>n.open=true);console.log(tab,'다시 열었을 때',JSON.stringify((await rulesBox(d).inputValue()).slice(-20)));await d.locator('div:not([hidden]) > details.ap2-guide-topic').getByRole('button',{name:'기본 규칙으로'}).click();}
+ for(const tab of ['삽화 지시문','수동 분석 지시문']){await d.getByRole('button',{name:tab}).click();await p.waitForTimeout(200);await d.locator('div:not([hidden]) > details.ap2-guide-topic:has(> summary:text-is("출력 규칙"))').evaluate(n=>n.open=true);console.log(tab,'다시 열었을 때',JSON.stringify((await rulesBox(d).inputValue()).slice(-20)));await d.locator('div:not([hidden]) > details.ap2-guide-topic:has(> summary:text-is("출력 규칙"))').getByRole('button',{name:'기본 규칙으로'}).click();}
  await d.getByRole('button',{name:'적용',exact:true}).click();await p.waitForTimeout(600);
  console.log('되돌린 뒤',JSON.stringify(await check()));
  console.log(errs);await b.close();})();
