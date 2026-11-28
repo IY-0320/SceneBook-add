@@ -33,6 +33,7 @@
     - **출력 규칙 고치기**(`output-rules.mjs`, `output-rules-store.mjs`, 키 `extensionSettings.autopic2_output_rules`={analysis,injection}, 비면 기본 자동 규칙). 규칙 글은 안 바꾸고 고칠 수 있게만 함.
     - **저장한 지시문 · 지시문 세트**(`prompt-presets.mjs`, 키 `extensionSettings.autopic2_prompt_presets`={analysis,injection,sets}). 이름은 내가 추천해 사용자가 받아들임. 공통 프롬프트는 그림체 프리셋이 맡으므로 넣지 않음.
     - **탭 표시 지연 수정**: `studio.mjs` `frame()`을 rAF+setTimeout으로(그린 뒤 페이지 만들기), 탭 버튼 `transition:none`(`style.css`에 [add] 한 줄). 휴대폰 속도 264ms→80ms.
+- **깡통 업데이트 노트**: 원본 업데이트로 바뀐 기능은 적지 않음. 원본을 합쳐 앞부분 번호만 바뀌면 최신 버전 이름만 바꿈(사용자가 0.6.2-add.1.2.0 → 0.6.3-add.1.2.0으로 이름만 바꿔 올림).
 - **깡통 글 상태**: 본문 `notes/post/kkangtong-post.html`(1.2.0 기능까지 반영, 카드 7개), 업데이트 기록 `notes/post/kkangtong-updates.html`(따로 붙이는 블록). 둘 다 사용자에게 줬음.
 - **다음에 할 수 있는 것**: 9번 참고.
 
