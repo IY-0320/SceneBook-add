@@ -39,13 +39,17 @@
   background:linear-gradient(115deg,transparent 32%,rgba(255,255,255,.10) 46%,transparent 60%);background-size:250% 100%;animation:sbpuShine 8s ease-in-out infinite;}
 @keyframes sbpuShine{0%,60%{background-position:120% 0;}100%{background-position:-120% 0;}}
 .sbpu .sbpu-latest, .sbpu .sbpu-latest *{color:#f4f4f5;color:#f4f4f5 !important;}
-.sbpu .sbpu-top{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+.sbpu .sbpu-latest details.sbpu-glass, .sbpu .sbpu-latest details.sbpu-glass[open]{background:linear-gradient(160deg,rgba(255,255,255,.10),rgba(255,255,255,.03));border:1px solid rgba(255,255,255,.14);}
+.sbpu .sbpu-latest .sbpu-lsum{display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:0 40px 0 0;}
+.sbpu .sbpu-latest .sbpu-lsum::after{right:0;color:#c9c9cf;color:#c9c9cf !important;}
+.sbpu .sbpu-latest details:not([open]) .sbpu-lsum .sbpu-ver{margin-bottom:0;}
+.sbpu .sbpu-latest .sbpu-list{animation:sbpuOpen .3s ease;}
 .sbpu .sbpu-latest .sbpu-new{display:inline-flex;align-items:center;gap:7px;font-size:.72em;font-weight:700;letter-spacing:.12em;padding:4px 11px;border-radius:999px;
   background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.14);color:#c9c9cf;color:#c9c9cf !important;}
 .sbpu .sbpu-dot{width:6px;height:6px;border-radius:50%;background:#4caf7a;animation:sbpuPulse 2.4s infinite;}
 @keyframes sbpuPulse{0%{box-shadow:0 0 0 0 rgba(76,175,122,.55);}100%{box-shadow:0 0 0 9px rgba(76,175,122,0);}}
-.sbpu .sbpu-latest .sbpu-ver{font-size:clamp(22px,6.4vw,30px);font-weight:800;letter-spacing:-.01em;line-height:1.2;margin:10px 0 2px;color:#ffffff;color:#ffffff !important;}
-.sbpu .sbpu-latest .sbpu-date{font-size:.8em;color:#9a9aa6;color:#9a9aa6 !important;}
+.sbpu .sbpu-latest .sbpu-ver{font-size:clamp(22px,6.4vw,30px);font-weight:800;letter-spacing:-.01em;line-height:1.2;display:block;margin:10px 0 2px;color:#ffffff;color:#ffffff !important;}
+.sbpu .sbpu-latest .sbpu-date{display:block;font-size:.8em;color:#9a9aa6;color:#9a9aa6 !important;}
 .sbpu .sbpu-latest .sbpu-list li{color:#e4e4e7;color:#e4e4e7 !important;}
 .sbpu .sbpu-latest .sbpu-list li::before{background:#9a9aa6;}
 .sbpu .sbpu-latest .sbpu-list b{color:#ffffff;color:#ffffff !important;}
@@ -77,16 +81,14 @@
 
   <div class="sbpu-head sbpu-reveal">
     <div><p class="sbpu-kicker">UPDATES</p><h2 class="sbpu-h2">업데이트 기록</h2></div>
-    <p class="sbpu-headnote">새 버전이 맨 위에 있습니다</p>
+    <p class="sbpu-headnote">버전을 누르면 접고 펼 수 있습니다</p>
   </div>
 
   <!-- 최신 버전: 새 버전을 올리면 이 상자 내용을 새 버전으로 바꾸고, 지금 내용은 아래 지난 버전 맨 위로 옮깁니다 -->
-  <section class="sbpu-latest">
+  <div class="sbpu-latest">
     <span class="sbpu-blob a"></span><span class="sbpu-blob b"></span>
-    <div class="sbpu-glass">
-      <div class="sbpu-top"><span class="sbpu-new"><span class="sbpu-dot"></span>LATEST</span></div>
-      <p class="sbpu-ver">0.6.2-add.1.2.0</p>
-      <p class="sbpu-date">2026. 11. 28</p>
+    <details class="sbpu-glass" open>
+      <summary class="sbpu-lsum"><span class="sbpu-new"><span class="sbpu-dot"></span>LATEST</span><span class="sbpu-ver">0.6.2-add.1.2.0</span><span class="sbpu-date">2026. 11. 28</span></summary>
       <ul class="sbpu-list">
         <li><b>갤러리 그림 형식</b> · 범위 칸 옆에서 삽화 · 웹툰 컷 · 흑백 만화 · 컬러 만화 · 세로 웹툰을 골라 봅니다. ‘이 채팅’과 함께 고르면 이 채팅의 그림만, ‘전체 삽화’와 함께 고르면 다른 채팅 그림까지 형식별로 보입니다.</li>
         <li><b>저장한 지시문</b> · 지시문 편집 창의 수동 분석 지시문 · 삽화 지시문 탭에서 지시문과 출력 규칙을 이름 붙여 저장하고 불러옵니다.</li>
@@ -95,8 +97,8 @@
         <li><b>이미지 읽기</b> · 불러온 PNG의 메인 · UC 프롬프트를 그 자리에서 고친 뒤 설정에 적용하거나 프리셋으로 저장합니다.</li>
         <li><b>탭 표시</b> · 씬북 창에서 탭을 누르면 검은 표시가 바로 옮겨 갑니다.</li>
       </ul>
-    </div>
-  </section>
+    </details>
+  </div>
 
   <!-- 지난 버전: 새 버전일수록 위에 둡니다 -->
   <div class="sbpu-past">
