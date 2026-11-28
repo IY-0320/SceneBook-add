@@ -31,6 +31,7 @@ import { activePreset, inPresetStyle } from './src/presets.mjs';
 // [add] 씬북+ 추가 기능 (src/addon/)
 import { migrateAddonSettings } from './src/addon/migrate.mjs';
 import { connect as connectAddon } from './src/addon/host.mjs';
+import { rememberFormats } from './src/addon/gallery-format.mjs'; // [add] 갤러리 그림 형식 기록
 import { revealTools as plusRevealTools, initChatHelpers, showVersionNow } from './src/addon/chat-helpers.mjs';
 import { plusDisplayParagraph } from './src/addon/auto-placement.mjs';
 import { activeStyleIndex, restyle, applyStylePreset, writeActiveStyle, STYLE_NONE, styleName, pinQuickStyle } from './src/addon/style-presets.mjs';
@@ -333,7 +334,7 @@ async function enqueue(target,scenes,slotId=null,overrideConfig=null) {
             sessionRequests++;
             const label=sceneLabel(scene);
             progress=progressNotice(`삽화 생성 중${checked.length>1?` (${position+1}/${checked.length})`:''}${label?` · ${label}`:''}`);
-            const job=await request('generate',{id,scene:sent,config:frozen});if(presetName)job.preset=presetName;if(pageScene)job.pageScene=pageScene;if(plainScene)job.plainScene=plainScene;if(scenes[position].cut)job.cut=true;const inserted=await attach(target,job,slotId);setWorkflowStatus('삽화 생성 완료');
+            const job=await request('generate',{id,scene:sent,config:frozen});if(presetName)job.preset=presetName;if(pageScene)job.pageScene=pageScene;if(plainScene)job.plainScene=plainScene;if(scenes[position].cut)job.cut=true;const inserted=await attach(target,job,slotId);rememberFormats([job]);/* [add] 갤러리 그림 형식 기록 */setWorkflowStatus('삽화 생성 완료');
             // Several pictures of one reply report once, when the last is in.
             if(inserted&&position===checked.length-1)notify(checked.length>1?`삽화 ${checked.length}장 생성 완료`:`삽화 생성 완료${label?` · ${label}`:''}`,{kind:'success'});
             }catch(e){if(['NO_KEY','NAI_401','NAI_402','NAI_403','NAI_429','COOLDOWN'].includes(e.code))queue.paused=true;setWorkflowStatus(e.message);notice(`삽화 생성 실패 · ${e.message}`,true);throw e;}
@@ -756,6 +757,7 @@ const api={settings,saveSettings,visualSettings,hasVisualOverride:where=>hasVisu
 };
 function initialize() {
     connectAddon({KEY,settings,saveSettings,scheduleRender,notice,safeImagePath});initChatHelpers(); // [add] 씬북+
+    {const c=context();if(c.eventTypes.CHAT_CHANGED)c.eventSource.on(c.eventTypes.CHAT_CHANGED,()=>rememberFormats(api.chatImages()));} // [add] 채팅을 열 때 그림 형식 기록
     const c=context();const moved=migrateAddonSettings(c.extensionSettings); /* [add] */if(initializeSettings(c.extensionSettings)||moved)c.saveSettingsDebounced();
     const container=document.getElementById('extensions_settings2')??document.getElementById('extensions_settings');
     if(container&&!document.getElementById('ap2-settings'))mountSettings(api,container);

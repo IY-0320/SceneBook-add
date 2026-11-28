@@ -1,7 +1,7 @@
 import { sceneLabel, sceneHint } from './scene-label.mjs';
 import { el, button, iconButton, actionMenu, modal, inspect, notice } from './ui.mjs';
 import { openViewer } from './addon/viewer.mjs'; // [add] 씬북+ 큰 그림 보기
-import { formatFilter } from './addon/gallery-format.mjs'; // [add] 씬북+ 그림 형식 칸
+import { formatFilter, rememberFormats } from './addon/gallery-format.mjs'; // [add] 씬북+ 그림 형식 칸
 
 // The server's job list is read once and reused; it is read again on request
 // or after a couple of minutes. New pictures of this chat come from the chat itself.
@@ -12,7 +12,7 @@ export async function galleryPage(page,{api,open,isCurrent,forced}) {
     search.type='search';search.placeholder='프롬프트 검색';search.setAttribute('aria-label','갤러리 검색');
     filter.setAttribute('aria-label','갤러리 범위');
     for(const [value,label]of [['done','전체 삽화'],['chat','이 채팅'],['failed','미완료']]){const option=el('option','',label);option.value=value;filter.append(option);}
-    const plusFormat=formatFilter(el); // [add] 그림 형식 칸
+    const plusFormat=formatFilter(el);rememberFormats(api.chatImages()); // [add] 그림 형식 칸 (이 채팅 그림 형식 기록)
     bar.append(search,filter,plusFormat.select,actionMenu([{label:'새로고침',icon:'fa-rotate-right',run:refresh},{label:'채팅 내보내기',icon:'fa-file-export',run:()=>api.exportChat()},{label:'삭제',icon:'fa-trash-can',danger:true,run:()=>startDelete()}])); // [add] 삭제
     const count=el('p','ap2-muted'),list=el('div','ap2-gallery'),pager=el('div','ap2-gallery-pager');count.setAttribute('role','status');
     page.append(bar,count,list,pager);count.textContent='그림을 불러오는 중…';
