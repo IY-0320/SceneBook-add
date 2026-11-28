@@ -1,16 +1,18 @@
 import { MODELS, normalizeScene } from '../plugin/core.mjs';
 import { readNovelAiImage, importedConfig } from './metadata.mjs';
 import { el, button, field, modal, notice } from './ui.mjs';
+import { importPresetButton } from './addon/import-preset.mjs'; // [add] 씬북+ 프리셋 빠른 저장
 
 export function imageImport(api,onApplied){
     const {dialog,body}=modal('이미지 읽기');
     const drop=el('div','ap2-import-drop'),file=el('input');file.type='file';file.accept='.png,image/png';file.hidden=true;drop.tabIndex=0;
-    drop.append(button('PNG 선택',()=>file.click(),false,'fa-file-image'),el('p','ap2-muted','여기에 놓거나 붙여넣기 · 원본 PNG, 최대 32MB'),file);
+    const plusPreset=importPresetButton(api),plusRow=el('div','ap2-actions ap2-plus-import-row');plusRow.append(button('PNG 선택',()=>file.click(),false,'fa-file-image'),plusPreset.button);/* [add] PNG 선택 옆 프리셋 빠른 저장 */
+    drop.append(plusRow,el('p','ap2-muted','여기에 놓거나 붙여넣기 · 원본 PNG, 최대 32MB'),file);
     const status=el('p','ap2-muted');status.setAttribute('role','status');const preview=el('div','ap2-import-preview');body.append(drop,status,preview);
     const footer=el('footer','ap2-footer');dialog.append(footer);let serial=0,url='';
     dialog.addEventListener('close',()=>{serial++;if(url)URL.revokeObjectURL(url);});
     async function read(input){
-        const ticket=++serial;preview.replaceChildren();footer.replaceChildren();status.textContent='이미지 정보를 읽는 중…';
+        const ticket=++serial;preview.replaceChildren();footer.replaceChildren();status.textContent='이미지 정보를 읽는 중…';plusPreset.ready(null);/* [add] */
         if(url){URL.revokeObjectURL(url);url='';}
         try{
             const result=await readNovelAiImage(input);if(ticket!==serial||!dialog.open)return;
@@ -27,6 +29,7 @@ export function imageImport(api,onApplied){
             if(result.warnings.length){const warnings=el('ul','ap2-import-warnings');for(const message of result.warnings)warnings.append(el('li','',message));preview.append(warnings);}
             preview.append(el('p','ap2-muted','메인·UC 프롬프트와 위 생성 설정을 가져옵니다. 캐릭터 프롬프트·캐릭터 UC·좌표·시드는 가져오지 않습니다. 품질 태그는 원문과 중복되지 않도록 추가를 끕니다.'));
             const config=forScene=>{normalizeScene(result.scene,model.read()||'nai-diffusion-5-full');return importedConfig(api.settings(),result,{model:model.read(),relaxBudget:large&&relax.read(),forScene});};
+            plusPreset.ready({fileName:input.name,config:()=>config(false)});/* [add] 씬북+ 프리셋 빠른 저장 */
             footer.append(button('설정에 적용',async()=>{api.saveSettings(config(false));await onApplied();dialog.close();notice('메인·UC 프롬프트와 생성 설정을 적용했습니다. 프롬프트 탭에서 확인할 수 있습니다.');},true),button('장면으로 열기',async()=>{await api.importScene({...result.scene,characters:[]},config(true));dialog.close();}));
         }catch(e){if(ticket===serial){status.textContent=e.message;status.setAttribute('role','alert');}}
     }
