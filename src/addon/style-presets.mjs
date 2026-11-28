@@ -9,8 +9,21 @@ export const STYLE_NONE='\u0000none';
 // 그림체로 취급하는 항목. 가로·세로 크기와 시드는 그림마다 따로 유지합니다.
 const STYLE_KEYS=['model','steps','scale','sampler','scheduler','cfgRescale','style','negative','look','quality','references','useCoords','useOrder'];
 const sameValue=(a,b)=>JSON.stringify(a??null)===JSON.stringify(b??null);
-const readActiveStyle=()=>{try{return localStorage.getItem(STYLE_STORE)||'';}catch{return '';}};
-export const writeActiveStyle=name=>{try{if(name)localStorage.setItem(STYLE_STORE,name);else localStorage.removeItem(STYLE_STORE);}catch{}};
+// 고른 프리셋 이름은 설정 파일(extensionSettings.autopic2_active_style)에 둡니다. 휴대폰·PC 어디서 골라도 같게 보이도록.
+// 원본 설정(autopic2)은 모르는 값을 지우므로 따로 둡니다. 예전 브라우저 저장(localStorage)은 한 번 옮깁니다.
+const ACTIVE_KEY='autopic2_active_style';
+const stContext=()=>{try{return SillyTavern.getContext();}catch{return null;}};
+const readActiveStyle=()=>{
+    const c=stContext(),saved=c?.extensionSettings?.[ACTIVE_KEY];
+    if(typeof saved==='string')return saved;
+    let old='';try{old=localStorage.getItem(STYLE_STORE)||'';}catch{}
+    if(old&&c?.extensionSettings){c.extensionSettings[ACTIVE_KEY]=old;c.saveSettingsDebounced?.();}
+    return old;
+};
+export const writeActiveStyle=name=>{
+    const c=stContext();if(c?.extensionSettings){c.extensionSettings[ACTIVE_KEY]=name||'';c.saveSettingsDebounced?.();}
+    try{localStorage.removeItem(STYLE_STORE);}catch{}
+};
 // look(원본의 '그림체' 선택)이 없는 프리셋은 적용해도 look이 바뀌지 않으므로 비교하지 않습니다.
 export const matchesStyle=(preset,now)=>{
     const config=preset?.config;if(!config)return false;
@@ -25,22 +38,18 @@ export function activeStyleIndex(){
     if(name){const i=list.findIndex(p=>p.name===name&&matchesStyle(p,now));if(i>=0)return i;}
     return list.findIndex(p=>matchesStyle(p,now));
 }
-// 직접 고른(적용·빠른 선택) 프리셋이 지금 설정과 같을 때만 그 번호. 설정이 우연히 프리셋과 같은 것만으로는 -1.
-function chosenStyleIndex(){
-    const now=host.settings(),name=readActiveStyle();
-    if(!name||name===STYLE_NONE)return -1;
-    return(now.presets??[]).findIndex(p=>p.name===name&&matchesStyle(p,now));
-}
-// 이미 만든 그림을 다시 만들 때, 직접 고른 그림체가 있으면 그 그림의 설정 위에 덮어씁니다.
-// 고른 프리셋이 없어도 씬북 창의 '그림체'(look)는 지금 설정을 따릅니다. 같으면 그 그림 설정을 그대로 돌려줍니다.
+// 이미 만든 그림을 다시 만들 때 쓰는 그림체: 씬북 창의 지금 그림체 설정(모델·Steps·메인 프롬프트·제외할 요소·그림체 등)을
+// 그 그림의 설정 위에 덮어씁니다. 크기·시드·장면은 그 그림 그대로입니다.
+// 프리셋 빠른 선택에서 '사용 안 함'을 고른 경우만 그 그림의 원래 그림체로 그리되, 그림체(look) 칸은 지금 설정을 따릅니다.
 export function restyle(config){
     if(!config)return config;
     const now=host.settings();
-    if(chosenStyleIndex()<0){
+    if(readActiveStyle()===STYLE_NONE){
         const look=now.look??'',own=typeof config.look==='string'?config.look:splitLook(config).look;
         return own===look?config:{...config,look};
     }
-    return{...config,...Object.fromEntries(STYLE_KEYS.filter(k=>now[k]!==undefined).map(k=>[k,structuredClone(now[k])]))};
+    const next={...config,...Object.fromEntries(STYLE_KEYS.filter(k=>now[k]!==undefined).map(k=>[k,structuredClone(now[k])]))};
+    return STYLE_KEYS.every(k=>sameValue(next[k],config[k]))?config:next;
 }
 export function applyStylePreset(index){
     const now=host.settings(),preset=now.presets?.[index];if(!preset)throw new Error('프리셋을 찾을 수 없습니다.');

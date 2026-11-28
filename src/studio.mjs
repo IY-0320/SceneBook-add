@@ -73,6 +73,19 @@ function workflowControls(api){
     };
     return{toggle,help,mode,sourceRow,helper,advice,status,refresh};
 }
+// [add] 씬북+ 프리셋 빠른 선택: 시작 탭의 '자동 삽화'와 '바로 하기' 사이에 둡니다.
+function quickStyleSection(page,{api,open}){
+    // [add] 프리셋 · 백업에 저장한 프리셋(그림체)을 바로 고르는 칸. 설정값 저장 대상이 아니므로 fields에 넣지 않습니다.
+    const styleList=api.settings().presets??[],styleActive=api.activeStyle?.()??-1;
+    if(styleList.length){
+        const styleBox=section(page,'프리셋 빠른 선택');
+        const styleField=field('적용할 프리셋',styleActive>=0?String(styleActive):'',{choices:[['','사용 안 함'],...styleList.map((p,i)=>[String(i),p.name])],help:'프리셋 · 백업에 저장한 프리셋(그림체)을 바로 바꿉니다. 이미 만든 그림을 재생성하면 고른 그림체로 다시 그립니다. 사용 안 함이면 그 그림의 원래 그림체로 다시 그립니다.'});
+        styleBox.append(styleField.wrap);
+        // 아래 자동 저장이 예전 입력값으로 덮어쓰지 않도록 이 칸의 변경은 위로 전달하지 않습니다.
+        for(const type of ['input','change'])styleField.input.addEventListener(type,event=>event.stopPropagation());
+        styleField.input.addEventListener('change',()=>{try{if(styleField.read()==='')api.clearActiveStyle();else api.applyStyle(Number(styleField.read()));}catch(e){notice(e.message,true);}return open('home',true);});
+    }
+}
 function homePage(page,{api,open,close,listen}){
     const banner=el('p','ap2-ready');banner.setAttribute('role','status');
     const setup=section(page,'먼저 준비할 것','세 가지가 모두 준비되면 그림을 그릴 수 있습니다.');page.prepend(banner);
@@ -107,6 +120,7 @@ function homePage(page,{api,open,close,listen}){
     const limitState=el('p','ap2-muted');limitState.setAttribute('role','status');
     limits.addEventListener('change',()=>{try{api.saveSettings({...api.settings(),...readFields(fields)});setText(limitState,'');}catch(e){setText(limitState,`저장 안 됨 · ${e.message}`);}});
     auto.append(flow.help,flow.mode.wrap,flow.sourceRow,flow.helper,flow.advice,limits,limitState,flow.status);
+    quickStyleSection(page,{api,open}); /* [add] 씬북+ 프리셋 빠른 선택 */
     const actions=section(page,'바로 하기'),quick=el('div','ap2-quick');
     quick.append(
         button('수동 생성',()=>{api.manual();close();},true,'fa-wand-magic-sparkles'),
@@ -169,16 +183,7 @@ function promptPage(page,{api,open}){
 let presetsOpen=false;
 function imagePage(page,{api,open}){
     const c=api.settings(),fields={};
-    // [add] 프리셋 · 백업에 저장한 프리셋(그림체)을 바로 고르는 칸. 설정값 저장 대상이 아니므로 fields에 넣지 않습니다.
-    const styleList=c.presets??[],styleActive=api.activeStyle?.()??-1;
-    if(styleList.length){
-        const styleBox=section(page,'프리셋 빠른 선택');
-        const styleField=field('적용할 프리셋',styleActive>=0?String(styleActive):'',{choices:[['','사용 안 함'],...styleList.map((p,i)=>[String(i),p.name])],help:'프리셋 · 백업에 저장한 프리셋(그림체)을 바로 바꿉니다. 이미 만든 그림을 재생성하면 고른 그림체로 다시 그립니다.'});
-        styleBox.append(styleField.wrap);
-        // 아래 자동 저장이 예전 입력값으로 덮어쓰지 않도록 이 칸의 변경은 위로 전달하지 않습니다.
-        for(const type of ['input','change'])styleField.input.addEventListener(type,event=>event.stopPropagation());
-        styleField.input.addEventListener('change',()=>{try{if(styleField.read()==='')api.clearActiveStyle();else api.applyStyle(Number(styleField.read()));}catch(e){notice(e.message,true);}return open('image',true);});
-    }
+    const styleActive=api.activeStyle?.()??-1; /* [add] 적용 중 표시용 */
     const modelBox=section(page,'모델'),modelHelp=el('p','ap2-muted');
     const model=addField(modelBox,fields,'model','NovelAI 모델',c.model,{choices:Object.entries(MODELS).map(([id,m])=>[id,m.label])});modelBox.append(modelHelp);
     const sizeBox=section(page,'크기');
