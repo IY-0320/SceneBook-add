@@ -80,6 +80,8 @@
 .ap2-nav .ap2-nav-item > i { width: 18px; text-align: center; }
 .ap2-nav .ap2-nav-item:hover { background: var(--ap2-1); color: var(--ap2-fg); }
 .ap2-nav .ap2-nav-item[aria-selected=true] { background: var(--ap2-2); color: var(--ap2-fg); font-weight: 600; }
+/* [add] 씬북+: 탭을 누르면 표시가 바로 바뀌도록 색 전환 효과를 끕니다 */
+.ap2-nav .ap2-nav-item { transition: none; }
 .ap2-pages { flex: 1 1 auto; min-width: 0; padding: 2px 18px 20px 10px; overflow-y: auto; overscroll-behavior: contain; }
 .ap2-header h2 > .ap2-version { margin-inline-start: 8px; }
 

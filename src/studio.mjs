@@ -341,7 +341,7 @@ export function studio(api,{page:first='home',host=null}={}){
     // insertion restyles a large part of the chat.
     const cached=new Map(),building=new Map(),pageEvents=new Map(),state={scope:null},instance=`ap2-${crypto.randomUUID()}`,watchers=new Map();let activeId=first;
     const loading=el('p','ap2-empty ap2-loading','불러오는 중…');loading.hidden=true;pages.append(loading);
-    const frame=()=>new Promise(resolve=>requestAnimationFrame(()=>resolve()));
+    const frame=()=>new Promise(resolve=>requestAnimationFrame(()=>setTimeout(resolve,0))); /* [add] 씬북+: 탭 표시가 화면에 그려진 뒤에 페이지를 만듭니다 */
     const display=id=>{const page=cached.get(id);for(const node of pages.children){const on=node===(page??loading);if(node.hidden===on)node.hidden=!on;}};
     // What a page was built from. A page is rebuilt only when this no longer matches.
     const DEPENDS={prompt:['look','style','negative','quality','leanPrompt','analysisPrompt','injectionPrompt','model'],
@@ -376,7 +376,7 @@ export function studio(api,{page:first='home',host=null}={}){
         const kept=cached.get(id);
         // Shown at once, also while a newer copy is being prepared behind it.
         display(id);
-        if(kept&&!refresh&&!outdated(id,kept)){kept.refresh?.();return;}
+        if(kept&&!refresh&&!outdated(id,kept)){await frame();/* [add] 그려진 뒤 새로고침 */if(activeId===id)kept.refresh?.();return;}
         if(building.has(id)&&!refresh)return;
         // The tab highlight is painted before the heavier work of building a page.
         await frame();
